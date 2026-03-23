@@ -45,8 +45,8 @@ export const Switch: React.FC<SwitchProps> = ({
         'relative rounded-full transition-all duration-300 ease-out flex items-center p-0.5',
         sizeClasses[size],
         checked 
-          ? 'bg-gradient-to-r from-indigo-500 to-purple-500' 
-          : 'bg-gray-300',
+          ? 'bg-[#6366f1]' 
+          : 'bg-[#e2e8f0]',
         disabled && 'opacity-50 cursor-not-allowed',
         !disabled && 'cursor-pointer hover:brightness-105'
       )}

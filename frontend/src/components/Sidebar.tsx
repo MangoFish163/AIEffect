@@ -24,8 +24,8 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick }) => 
       className={cn(
         'flex items-center gap-3 w-full px-4 py-3 text-left transition-all duration-200 rounded-xl mx-2',
         isActive
-          ? 'bg-gradient-to-r from-pink-500 to-pink-500 text-white shadow-md'
-          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+          ? 'bg-[#6366f1] text-white shadow-md'
+          : 'text-[#64748b] hover:bg-[#f8fafc] hover:text-[#334155]'
       )}
     >
       <span className="w-5 h-5">{icon}</span>
@@ -46,16 +46,16 @@ export const Sidebar: React.FC = () => {
   ];
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-full">
+    <div className="w-64 bg-white border-r border-[#e2e8f0] flex flex-col h-full">
       <div className="p-6">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
+          <div className="w-12 h-12 bg-[#6366f1] rounded-2xl flex items-center justify-center shadow-lg">
             <span className="text-white font-bold text-xl">AI</span>
           </div>
           <div>
-            <h1 className="font-bold text-gray-800 text-lg">O2O Adapter</h1>
-            <p className="text-xs text-gray-500">Ollama to OpenAI</p>
-            <p className="text-xs text-gray-400 mt-1">作者: 杰</p>
+            <h1 className="font-bold text-[#0f172a] text-lg">O2O Adapter</h1>
+            <p className="text-xs text-[#64748b]">Ollama to OpenAI</p>
+            <p className="text-xs text-[#94a3b8] mt-1">作者: 杰</p>
           </div>
         </div>
       </div>
@@ -73,16 +73,16 @@ export const Sidebar: React.FC = () => {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-gray-100">
-        <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-100">
-          <p className="text-xs font-semibold text-blue-700 mb-2">服务状态</p>
+      <div className="p-4 border-t border-[#e2e8f0]">
+        <div className="bg-[#f0f4ff] rounded-xl p-4 border border-[#e2e8f0]">
+          <p className="text-xs font-semibold text-[#6366f1] mb-2">服务状态</p>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-sm text-blue-700">服务正在运行</span>
+            <span className="w-2.5 h-2.5 bg-[#22c55e] rounded-full animate-pulse" />
+            <span className="text-sm text-[#6366f1]">服务正在运行</span>
           </div>
-          <p className="text-xs text-blue-500 mt-1.5">端口: 8500</p>
+          <p className="text-xs text-[#818cf8] mt-1.5">端口: 8500</p>
         </div>
-        <button className="w-full mt-4 py-2.5 px-4 text-sm text-pink-600 border border-pink-200 rounded-xl hover:bg-pink-50 transition-colors font-medium">
+        <button className="w-full mt-4 py-2.5 px-4 text-sm text-[#ef4444] border border-[#ef4444]/20 rounded-xl hover:bg-[#fef2f2] transition-colors font-medium">
           <div className="flex items-center justify-center gap-2">
             <Power className="w-4 h-4" />
             停止服务
