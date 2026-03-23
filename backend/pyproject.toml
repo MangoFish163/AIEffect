@@ -1,0 +1,17 @@
+[tool.black]
+line-length = 100
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[project]
+name = "aieffect"
+version = "0.1.0"
+description = "AI Effect Backend - AI Voice Interaction Adapter"
+requires-python = ">=3.11"
