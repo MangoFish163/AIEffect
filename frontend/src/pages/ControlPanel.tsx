@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Play, Pause, Eye, EyeOff, Copy, Check, Settings, Volume2, Plus, RefreshCw, Globe, Bot, Zap, Trash2, Save, Sparkles, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Play, Pause, Eye, EyeOff, Copy, Check, Settings, Volume2, Plus, RefreshCw, Globe, Bot, Zap, Trash2, Save, Sparkles, X, ChevronDown, ChevronUp, Shuffle } from 'lucide-react';
 import { useAppStore } from '../store';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -15,15 +15,19 @@ interface ProviderPreset {
   name: string;
   icon: string;
   apiUrl: string;
+  apiKey?: string;
+  modelName?: string;
+  docUrl?: string;
   isCustom?: boolean;
 }
 
 // 内置预设服务商
 const BUILTIN_PRESETS: ProviderPreset[] = [
   { id: 'deepseek', name: 'DeepSeek', icon: '🗿', apiUrl: 'https://api.deepseek.com/v1' },
-  { id: 'doubao', name: '豆包Seed (火山引擎)', icon: '🗿', apiUrl: 'https://ark.cn-beijing.volces.com/api/v3' },
-  { id: 'mimo', name: 'MiMo (XiaoMi)', icon: '🗿', apiUrl: 'https://api.mimo.ai/v1' },
-  { id: 'openai', name: 'OpenAI', icon: '🗿', apiUrl: 'https://api.openai.com/v1' },
+  { id: 'doubao', name: '豆包Seed (火山引擎)', icon: '😍', apiUrl: 'https://ark.cn-beijing.volces.com/api/v3' },
+  { id: 'mimo', name: 'MiMo (XiaoMi)', icon: '🐿️', apiUrl: 'https://api.mimo.ai/v1' },
+  { id: 'openrouter', name: 'OpenRouter', icon: '🤖', apiUrl: 'https://openrouter.ai/api/v1' },
+  { id: 'openai', name: 'OpenAI', icon: '🐳', apiUrl: 'https://api.openai.com/v1' },
   { id: 'local', name: '本地模型', icon: '🏠', apiUrl: 'http://127.0.0.1:11434/v1' },
 ];
 
@@ -62,22 +66,45 @@ interface CreatePresetModalProps {
   onCreate: (preset: Omit<ProviderPreset, 'id' | 'isCustom'>) => void;
 }
 
+// 随机图标选项
+const RANDOM_ICONS = ['🐿️', '🐳', '🐸', '😎', '🤖', '🦞'];
+
 const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, onCreate }) => {
   const [name, setName] = useState('');
-  const [icon, setIcon] = useState('⭐');
+  const [icon, setIcon] = useState('');
   const [apiUrl, setApiUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [modelName, setModelName] = useState('');
+  const [docUrl, setDocUrl] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      onCreate({ name: name.trim(), icon: icon || '⭐', apiUrl: apiUrl.trim() });
+      onCreate({
+        name: name.trim(),
+        icon: icon || '⭐',
+        apiUrl: apiUrl.trim(),
+        apiKey: apiKey.trim(),
+        modelName: modelName.trim(),
+        docUrl: docUrl.trim(),
+      });
       setName('');
-      setIcon('⭐');
+      setIcon('');
       setApiUrl('');
+      setApiKey('');
+      setModelName('');
+      setDocUrl('');
       onClose();
     }
+  };
+
+  const handleRandomIcon = () => {
+    const randomIcon = RANDOM_ICONS[Math.floor(Math.random() * RANDOM_ICONS.length)];
+    setIcon(randomIcon);
   };
 
   return (
@@ -94,26 +121,42 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
         </div>
         <p className="text-sm text-[#64748b] mb-6">创建一个新的 API 配置预设，方便快速切换不同的服务商</p>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[#334155] mb-1.5">预设名称</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="例如：Claude API"
-              className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-[#334155] mb-1.5">图标 (Emoji)</label>
-            <input
-              type="text"
-              value={icon}
-              onChange={(e) => setIcon(e.target.value)}
-              placeholder="⭐"
-              maxLength={2}
-              className="input w-20 text-center focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
-            />
+          <div className="flex gap-3">
+            <div className="flex-[2]">
+              <label className="block text-sm font-medium text-[#334155] mb-1.5">预设名称</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="例如：Claude API"
+                className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-[#334155] mb-1.5">图标</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={icon}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value.length <= 2) {
+                      setIcon(value);
+                    }
+                  }}
+                  placeholder="⭐"
+                  className="input w-full text-center pr-10 pl-3 focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+                />
+                <button
+                  type="button"
+                  onClick={handleRandomIcon}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 text-[#64748b] hover:text-[#6366f1] transition-all duration-200"
+                  title="随机图标"
+                >
+                  <Shuffle className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-[#334155] mb-1.5">默认 API URL (可选)</label>
@@ -124,6 +167,66 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
               placeholder="https://api.example.com/v1"
               className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
             />
+          </div>
+          {isExpanded && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-[#334155] mb-1.5">API Key (可选)</label>
+                <div className="relative">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    className="input pr-10 focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#64748b] transition-colors duration-200"
+                  >
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#334155] mb-1.5">模型名称 (可选)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                    placeholder="例如：gpt-4"
+                    className="input pr-10 focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#6366f1] transition-colors duration-200"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#334155] mb-1.5">官方接口文档地址 (可选)</label>
+                <input
+                  type="text"
+                  value={docUrl}
+                  onChange={(e) => setDocUrl(e.target.value)}
+                  placeholder="https://docs.example.com"
+                  className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+                />
+              </div>
+            </>
+          )}
+          <div className="flex justify-center -mt-3">
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-[#94a3b8] hover:text-[#64748b] transition-colors duration-200 leading-none h-4 flex items-center"
+            >
+              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
           </div>
           <div className="flex gap-3 pt-4">
             <button
@@ -152,6 +255,319 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
   );
 };
 
+// 编辑预设弹窗组件
+interface EditPresetModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  preset: ProviderPreset | null;
+  onSave: (preset: ProviderPreset) => void;
+}
+
+const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, preset, onSave }) => {
+  const [name, setName] = useState('');
+  const [icon, setIcon] = useState('');
+  const [apiUrl, setApiUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [modelName, setModelName] = useState('');
+  const [docUrl, setDocUrl] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+
+  useEffect(() => {
+    if (preset) {
+      setName(preset.name);
+      setIcon(preset.icon);
+      setApiUrl(preset.apiUrl);
+      setApiKey(preset.apiKey || '');
+      setModelName(preset.modelName || '');
+      setDocUrl(preset.docUrl || '');
+    }
+  }, [preset]);
+
+  if (!isOpen || !preset) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (name.trim()) {
+      onSave({
+        ...preset,
+        name: name.trim(),
+        icon: icon || '⭐',
+        apiUrl: apiUrl.trim(),
+        apiKey: apiKey.trim(),
+        modelName: modelName.trim(),
+        docUrl: docUrl.trim(),
+      });
+      onClose();
+    }
+  };
+
+  const handleRandomIcon = () => {
+    const randomIcon = RANDOM_ICONS[Math.floor(Math.random() * RANDOM_ICONS.length)];
+    setIcon(randomIcon);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 m-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-[#0f172a]">编辑 API 预设</h3>
+          <button
+            onClick={onClose}
+            className="p-1 text-[#94a3b8] hover:text-[#64748b] transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <p className="text-sm text-[#64748b] mb-6">修改 API 配置预设的详细信息</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex gap-3">
+            <div className="flex-[2]">
+              <label className="block text-sm font-medium text-[#334155] mb-1.5">预设名称</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="例如：Claude API"
+                className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-[#334155] mb-1.5">图标</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={icon}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value.length <= 2) {
+                      setIcon(value);
+                    }
+                  }}
+                  placeholder="⭐"
+                  className="input w-full text-center pr-10 pl-3 focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+                />
+                <button
+                  type="button"
+                  onClick={handleRandomIcon}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 text-[#64748b] hover:text-[#6366f1] transition-all duration-200"
+                  title="随机图标"
+                >
+                  <Shuffle className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">默认 API URL</label>
+            <input
+              type="text"
+              value={apiUrl}
+              onChange={(e) => setApiUrl(e.target.value)}
+              placeholder="https://api.example.com/v1"
+              className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">API Key</label>
+            <div className="relative">
+              <input
+                type={showApiKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="input pr-10 focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#64748b] transition-colors duration-200"
+              >
+                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">模型名称</label>
+            <input
+              type="text"
+              value={modelName}
+              onChange={(e) => setModelName(e.target.value)}
+              placeholder="例如：gpt-4"
+              className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">官方接口文档地址</label>
+            <input
+              type="text"
+              value={docUrl}
+              onChange={(e) => setDocUrl(e.target.value)}
+              placeholder="https://docs.example.com"
+              className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+            />
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 text-sm font-medium text-[#64748b] border border-[#e2e8f0] rounded-xl hover:bg-[#f8fafc] transition-colors"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim()}
+              className={cn(
+                'flex-1 px-4 py-2 text-sm font-medium rounded-xl transition-colors',
+                name.trim()
+                  ? 'bg-[#6366f1] text-white hover:bg-[#4f46e5]'
+                  : 'bg-[#e2e8f0] text-[#94a3b8] cursor-not-allowed'
+              )}
+            >
+              保存
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// 自定义预设下拉菜单组件
+interface PresetSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  builtinPresets: ProviderPreset[];
+  customPresets: ProviderPreset[];
+  onCreateNew: () => void;
+  onDeleteCustom: (id: string) => void;
+}
+
+const PresetSelect: React.FC<PresetSelectProps> = ({
+  value,
+  onChange,
+  builtinPresets,
+  customPresets,
+  onCreateNew,
+  onDeleteCustom,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const allPresets = [...builtinPresets, ...customPresets];
+  const selectedPreset = allPresets.find((p) => p.id === value);
+  const isCustomSelected = customPresets.some((p) => p.id === value);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelect = (presetId: string) => {
+    onChange(presetId);
+    setIsOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          'w-full flex items-center justify-between px-4 py-2.5 bg-white border rounded-xl text-sm transition-all duration-200',
+          isOpen
+            ? 'border-[#6366f1] ring-2 ring-[#6366f1]/10 shadow-sm'
+            : 'border-[#e2e8f0] hover:border-[#94a3b8]'
+        )}
+      >
+        <span className={selectedPreset ? 'text-[#334155]' : 'text-[#94a3b8]'}>
+          {selectedPreset ? `${selectedPreset.icon} ${selectedPreset.name}` : '选择服务商'}
+        </span>
+        <ChevronDown
+          className={cn(
+            'w-4 h-4 text-[#64748b] transition-transform duration-200',
+            isOpen && 'rotate-180'
+          )}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full min-w-[240px] bg-white border border-[#e2e8f0] rounded-xl shadow-lg overflow-hidden top-full mt-1">
+          <div className="py-1 max-h-[320px] overflow-y-auto">
+            {/* 默认预设分组 */}
+            <div className="px-3 py-2 text-xs font-medium text-[#94a3b8] uppercase tracking-wider">
+              自定义 (Custom)
+            </div>
+            {builtinPresets.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => handleSelect(preset.id)}
+                className={cn(
+                  'w-full px-4 py-2.5 text-left text-sm transition-colors duration-150 flex items-center gap-2',
+                  value === preset.id
+                    ? 'bg-[#f0f4ff] text-[#6366f1]'
+                    : 'text-[#334155] hover:bg-[#f8fafc]'
+                )}
+              >
+                <span>{preset.icon}</span>
+                <span className="flex-1">{preset.name}</span>
+                {value === preset.id && <Check className="w-4 h-4" />}
+              </button>
+            ))}
+
+            {/* 分隔线 */}
+            {customPresets.length > 0 && (
+              <div className="border-t border-[#e2e8f0] mt-1 pt-1">
+                <div className="px-3 py-2 text-xs font-medium text-[#94a3b8] uppercase tracking-wider">
+                  我的预设
+                </div>
+                {customPresets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleSelect(preset.id)}
+                    className={cn(
+                      'w-full px-4 py-2.5 text-left text-sm transition-colors duration-150 flex items-center gap-2 group',
+                      value === preset.id
+                        ? 'bg-[#f0f4ff] text-[#6366f1]'
+                        : 'text-[#334155] hover:bg-[#f8fafc]'
+                    )}
+                  >
+                    <span>{preset.icon}</span>
+                    <span className="flex-1">{preset.name}</span>
+                    {value === preset.id && <Check className="w-4 h-4" />}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* 新建预设按钮 */}
+            <div className="border-t border-[#e2e8f0] mt-1 pt-1 px-2 pb-1">
+              <button
+                type="button"
+                onClick={() => {
+                  onCreateNew();
+                  setIsOpen(false);
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-[#6366f1] hover:bg-[#f0f4ff] rounded-lg transition-colors duration-150 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                新建预设...
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const ControlPanel: React.FC = () => {
   const { config, setConfig } = useAppStore();
   const [showApiKey, setShowApiKey] = useState(false);
@@ -171,6 +587,7 @@ export const ControlPanel: React.FC = () => {
   // 自定义预设状态
   const [customPresets, setCustomPresets] = useState<ProviderPreset[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText('http://localhost:8501');
@@ -178,24 +595,9 @@ export const ControlPanel: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // 合并内置预设和自定义预设
-  const allPresets = [...BUILTIN_PRESETS, ...customPresets];
-
-  // 生成 Select 组件的选项
-  const providerOptions = [
-    ...allPresets.map((preset) => ({
-      value: preset.id,
-      label: `${preset.icon} ${preset.name}`,
-    })),
-    { value: '__custom__', label: '+ 新建预设...' },
-  ];
-
   // 处理预设选择
   const handleProviderChange = (value: string) => {
-    if (value === '__custom__') {
-      setIsCreateModalOpen(true);
-      return;
-    }
+    const allPresets = [...BUILTIN_PRESETS, ...customPresets];
     const preset = allPresets.find((p) => p.id === value);
     if (preset) {
       setConfig({
@@ -224,6 +626,41 @@ export const ControlPanel: React.FC = () => {
         api_url: preset.apiUrl || config.api.api_url,
       },
     });
+  };
+
+  // 编辑预设
+  const handleEditPreset = (updatedPreset: ProviderPreset) => {
+    setCustomPresets(customPresets.map((p) => (p.id === updatedPreset.id ? updatedPreset : p)));
+    // 如果编辑的是当前选中的预设，更新配置
+    if (config.api.provider === updatedPreset.id) {
+      setConfig({
+        api: {
+          ...config.api,
+          api_url: updatedPreset.apiUrl || config.api.api_url,
+        },
+      });
+    }
+  };
+
+  // 获取当前选中的预设
+  const getCurrentPreset = (): ProviderPreset | null => {
+    const allPresets = [...BUILTIN_PRESETS, ...customPresets];
+    return allPresets.find((p) => p.id === config.api.provider) || null;
+  };
+
+  // 删除自定义预设
+  const handleDeleteCustomPreset = (id: string) => {
+    setCustomPresets(customPresets.filter((p) => p.id !== id));
+    // 如果删除的是当前选中的预设，切换到默认预设
+    if (config.api.provider === id) {
+      setConfig({
+        api: {
+          ...config.api,
+          provider: BUILTIN_PRESETS[0].id,
+          api_url: BUILTIN_PRESETS[0].apiUrl,
+        },
+      });
+    }
   };
 
   return (
@@ -330,12 +767,25 @@ export const ControlPanel: React.FC = () => {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-[#334155] mb-1.5">服务商预设</label>
-              <Select
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium text-[#334155]">服务商预设</label>
+                {customPresets.some((p) => p.id === config.api.provider) && (
+                  <button
+                    onClick={() => handleDeleteCustomPreset(config.api.provider)}
+                    className="flex items-center gap-1 text-xs text-[#ef4444] hover:text-[#dc2626] transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    删除预设
+                  </button>
+                )}
+              </div>
+              <PresetSelect
                 value={config.api.provider}
                 onChange={handleProviderChange}
-                options={providerOptions}
-                placeholder="选择服务商"
+                builtinPresets={BUILTIN_PRESETS}
+                customPresets={customPresets}
+                onCreateNew={() => setIsCreateModalOpen(true)}
+                onDeleteCustom={handleDeleteCustomPreset}
               />
             </div>
 
@@ -383,11 +833,12 @@ export const ControlPanel: React.FC = () => {
                 />
               </div>
               <div className="flex gap-2 mt-7">
-                <button className="p-2 border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] hover:border-[#94a3b8] transition-all duration-200">
-                  <RefreshCw className="w-4 h-4 text-[#64748b]" />
-                </button>
-                <button className="p-2 border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] hover:border-[#94a3b8] transition-all duration-200">
-                  <Copy className="w-4 h-4 text-[#64748b]" />
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="p-2 border border-[#e2e8f0] rounded-lg hover:bg-[#f0f4ff] hover:border-[#6366f1] hover:text-[#6366f1] transition-all duration-200"
+                  title="配置预设"
+                >
+                  <Settings className="w-4 h-4 text-[#64748b] hover:text-[#6366f1]" />
                 </button>
               </div>
             </div>
@@ -571,6 +1022,14 @@ export const ControlPanel: React.FC = () => {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={handleCreatePreset}
+      />
+
+      {/* 编辑预设弹窗 */}
+      <EditPresetModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        preset={getCurrentPreset()}
+        onSave={handleEditPreset}
       />
     </div>
   );

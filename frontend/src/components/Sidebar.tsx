@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Subtitles, Mic, ClipboardList, FileText, Zap, RefreshCw } from 'lucide-react';
+import { Settings, Subtitles, Mic, ClipboardList, FileText, Zap, RefreshCw, Users } from 'lucide-react';
 import { PageType } from '../types';
 import { useAppStore } from '../store';
 import { clsx, type ClassValue } from 'clsx';
@@ -43,6 +43,7 @@ export const Sidebar: React.FC = () => {
     { page: 'voice' as PageType, icon: <Mic />, label: '语音配置' },
     { page: 'memory' as PageType, icon: <ClipboardList />, label: '记忆管理' },
     { page: 'logs' as PageType, icon: <FileText />, label: '运行日志' },
+    { page: 'agents' as PageType, icon: <Users />, label: 'Agents办公室' },
   ];
 
   return (

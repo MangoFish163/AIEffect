@@ -5,6 +5,7 @@ import { SubtitleVisual } from './pages/SubtitleVisual';
 import { VoiceConfig } from './pages/VoiceConfig';
 import { MemoryManager } from './pages/MemoryManager';
 import { LogsViewer } from './pages/LogsViewer';
+import { AgentsOfficeZones } from './pages/AgentsOfficeZones';
 import { useAppStore } from './store';
 
 const App: React.FC = () => {
@@ -22,6 +23,8 @@ const App: React.FC = () => {
         return <MemoryManager />;
       case 'logs':
         return <LogsViewer />;
+      case 'agents':
+        return <AgentsOfficeZones />;
       default:
         return <ControlPanel />;
     }

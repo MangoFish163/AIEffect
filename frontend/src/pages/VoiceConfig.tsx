@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mic, MicOff, Volume2, Play, Pause, Plus, Trash2, Save, Settings, User, Folder, MessageSquare, Keyboard, AlertCircle, ExternalLink } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, Play, Pause, Plus, Trash2, Save, Settings, User, Folder, MessageSquare, Keyboard, AlertCircle, ExternalLink } from 'lucide-react';
 import { useAppStore } from '../store';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -16,6 +16,7 @@ export const VoiceConfig: React.FC = () => {
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [autoPlayEnabled, setAutoPlayEnabled] = useState(true);
   const [saveAudioEnabled, setSaveAudioEnabled] = useState(true);
+  const [mixEnabled, setMixEnabled] = useState(false); // 混音播放状态，默认停用
 
   // ASR 状态
   const [asrEnabled, setAsrEnabled] = useState(false);
@@ -141,9 +142,17 @@ export const VoiceConfig: React.FC = () => {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <button className="flex-1 py-2.5 px-4 text-sm text-[#ef4444] bg-[#fef2f2] rounded-xl hover:bg-[#fee2e2] transition-all duration-200 flex items-center justify-center gap-2">
-                      <MicOff className="w-4 h-4" />
-                      停止播放
+                    <button
+                      onClick={() => setMixEnabled(!mixEnabled)}
+                      className={cn(
+                        'flex-1 py-2.5 px-4 text-sm rounded-xl transition-all duration-200 flex items-center justify-center gap-2',
+                        mixEnabled
+                          ? 'text-[#22c55e] bg-[#f0fdf4] hover:bg-[#dcfce7]'
+                          : 'text-[#ef4444] bg-[#fef2f2] hover:bg-[#fee2e2]'
+                      )}
+                    >
+                      {mixEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                      {mixEnabled ? '启用播放' : '停用播放'}
                     </button>
                     <button className="flex-1 py-2.5 px-4 text-sm text-[#64748b] border border-[#e2e8f0] rounded-xl hover:bg-[#f8fafc] transition-all duration-200">
                       空闲

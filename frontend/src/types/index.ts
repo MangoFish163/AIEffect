@@ -59,4 +59,4 @@ export interface CharacterMemory {
   compressed_summary?: string;
 }
 
-export type PageType = 'control' | 'subtitle' | 'voice' | 'memory' | 'logs';
+export type PageType = 'control' | 'subtitle' | 'voice' | 'memory' | 'logs' | 'agents';
