@@ -1,4 +1,4 @@
-# AIEffect - AI 语音交互适配器
+# AIEffect - AI AI 交互Agent
 
 一款集 Ollama 代理服务、AI 语音合成（TTS）、字幕展示、对话记忆管理于一体的现代化 AI 交互工具。
 

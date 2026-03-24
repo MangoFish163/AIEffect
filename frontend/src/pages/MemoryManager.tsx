@@ -148,15 +148,15 @@ export const MemoryManager: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#e2e8f0]">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-[#f0f4ff] rounded-xl flex items-center justify-center">
                   <FileText className="w-5 h-5 text-[#6366f1]" />
                 </div>
                 <h3 className="font-semibold text-[#0f172a]">压缩提示词模板</h3>
               </div>
-              <p className="text-xs text-[#94a3b8]">可用占位符: {'{'}character_name{'}'}, {'{'}player_name{'}'}, {'{'}message_count{'}'}</p>
             </div>
+            <div className="text-xs text-[#94a3b8] mb-3 ml-[52px] leading-tight">可用占位符: {'{'}character_name{'}'}, {'{'}player_name{'}'}, {'{'}message_count{'}'}</div>
 
             <textarea
               className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl min-h-[300px] font-mono text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"

@@ -1,7 +1,7 @@
 {
   "name": "aieffect-frontend",
   "version": "1.0.0",
-  "description": "AIEffect - AI 语音交互适配器 前端",
+  "description": "AIEffect - AI AI 交互Agent 前端",
   "private": true,
   "scripts": {
     "dev": "vite",

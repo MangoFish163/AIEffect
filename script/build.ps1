@@ -121,7 +121,7 @@ $StartScript = @"
 @echo off
 chcp 65001 >nul
 echo ==========================================
-echo   AIEffect - AI 语音交互适配器
+echo   AIEffect - AI AI 交互Agent
 echo ==========================================
 echo.
 

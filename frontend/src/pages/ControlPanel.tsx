@@ -1,12 +1,31 @@
 import React, { useState } from 'react';
-import { Play, Pause, Eye, EyeOff, Copy, Check, Settings, Volume2, Plus, RefreshCw, Globe, Bot, Zap, Trash2, Save, Sparkles } from 'lucide-react';
+import { Play, Pause, Eye, EyeOff, Copy, Check, Settings, Volume2, Plus, RefreshCw, Globe, Bot, Zap, Trash2, Save, Sparkles, X } from 'lucide-react';
 import { useAppStore } from '../store';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { Select } from '../components';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+// 预设服务商类型
+interface ProviderPreset {
+  id: string;
+  name: string;
+  icon: string;
+  apiUrl: string;
+  isCustom?: boolean;
+}
+
+// 内置预设服务商
+const BUILTIN_PRESETS: ProviderPreset[] = [
+  { id: 'deepseek', name: 'DeepSeek', icon: '🗿', apiUrl: 'https://api.deepseek.com/v1' },
+  { id: 'doubao', name: '豆包Seed (火山引擎)', icon: '🗿', apiUrl: 'https://ark.cn-beijing.volces.com/api/v3' },
+  { id: 'mimo', name: 'MiMo (XiaoMi)', icon: '🗿', apiUrl: 'https://api.mimo.ai/v1' },
+  { id: 'openai', name: 'OpenAI', icon: '🗿', apiUrl: 'https://api.openai.com/v1' },
+  { id: 'local', name: '本地模型', icon: '🏠', apiUrl: 'http://127.0.0.1:11434/v1' },
+];
 
 // 自定义开关组件
 interface SwitchProps {
@@ -36,72 +55,99 @@ const Switch: React.FC<SwitchProps> = ({ checked, onChange, disabled }) => {
   );
 };
 
-// 自定义下拉选择框
-interface SelectProps {
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-  placeholder?: string;
+// 新建预设弹窗组件
+interface CreatePresetModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreate: (preset: Omit<ProviderPreset, 'id' | 'isCustom'>) => void;
 }
 
-const Select: React.FC<SelectProps> = ({ value, onChange, options, placeholder }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const selectedOption = options.find(opt => opt.value === value);
+const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, onCreate }) => {
+  const [name, setName] = useState('');
+  const [icon, setIcon] = useState('⭐');
+  const [apiUrl, setApiUrl] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (name.trim()) {
+      onCreate({ name: name.trim(), icon: icon || '⭐', apiUrl: apiUrl.trim() });
+      setName('');
+      setIcon('⭐');
+      setApiUrl('');
+      onClose();
+    }
+  };
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={cn(
-          'w-full flex items-center justify-between px-4 py-2.5 bg-white border rounded-xl text-sm transition-all duration-200',
-          isOpen 
-            ? 'border-[#6366f1] ring-2 ring-[#6366f1]/10' 
-            : 'border-[#e2e8f0] hover:border-[#94a3b8]'
-        )}
-      >
-        <span className={selectedOption ? 'text-[#334155]' : 'text-[#94a3b8]'}>
-          {selectedOption?.label || placeholder || '请选择'}
-        </span>
-        <svg
-          className={cn(
-            'w-4 h-4 text-[#94a3b8] transition-transform duration-200',
-            isOpen && 'rotate-180'
-          )}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      
-      {isOpen && (
-        <>
-          <div 
-            className="fixed inset-0 z-10" 
-            onClick={() => setIsOpen(false)}
-          />
-          <div className="absolute z-20 w-full mt-1 bg-white border border-[#e2e8f0] rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-            {options.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => {
-                  onChange(option.value);
-                  setIsOpen(false);
-                }}
-                className={cn(
-                  'w-full px-4 py-2.5 text-left text-sm transition-colors duration-150',
-                  value === option.value
-                    ? 'bg-[#f0f4ff] text-[#6366f1]'
-                    : 'text-[#334155] hover:bg-[#f8fafc]'
-                )}
-              >
-                {option.label}
-              </button>
-            ))}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 m-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-[#0f172a]">新建 API 预设</h3>
+          <button
+            onClick={onClose}
+            className="p-1 text-[#94a3b8] hover:text-[#64748b] transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <p className="text-sm text-[#64748b] mb-6">创建一个新的 API 配置预设，方便快速切换不同的服务商</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">预设名称</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="例如：Claude API"
+              className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+            />
           </div>
-        </>
-      )}
+          <div>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">图标 (Emoji)</label>
+            <input
+              type="text"
+              value={icon}
+              onChange={(e) => setIcon(e.target.value)}
+              placeholder="⭐"
+              maxLength={2}
+              className="input w-20 text-center focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">默认 API URL (可选)</label>
+            <input
+              type="text"
+              value={apiUrl}
+              onChange={(e) => setApiUrl(e.target.value)}
+              placeholder="https://api.example.com/v1"
+              className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+            />
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 text-sm font-medium text-[#64748b] border border-[#e2e8f0] rounded-xl hover:bg-[#f8fafc] transition-colors"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim()}
+              className={cn(
+                'flex-1 px-4 py-2 text-sm font-medium rounded-xl transition-colors',
+                name.trim()
+                  ? 'bg-[#6366f1] text-white hover:bg-[#4f46e5]'
+                  : 'bg-[#e2e8f0] text-[#94a3b8] cursor-not-allowed'
+              )}
+            >
+              创建
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
@@ -111,7 +157,7 @@ export const ControlPanel: React.FC = () => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [isServiceRunning, setIsServiceRunning] = useState(false);
   const [copied, setCopied] = useState(false);
-  
+
   // 新增状态
   const [antigravityEnabled, setAntigravityEnabled] = useState(false);
   const [auxModelEnabled, setAuxModelEnabled] = useState(false);
@@ -122,21 +168,66 @@ export const ControlPanel: React.FC = () => {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [assistantPrompt, setAssistantPrompt] = useState('');
 
+  // 自定义预设状态
+  const [customPresets, setCustomPresets] = useState<ProviderPreset[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
   const handleCopy = async () => {
     await navigator.clipboard.writeText('http://localhost:8501');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // 合并内置预设和自定义预设
+  const allPresets = [...BUILTIN_PRESETS, ...customPresets];
+
+  // 生成 Select 组件的选项
   const providerOptions = [
-    { value: 'custom', label: '自定义 (Custom)' },
-    { value: 'openai', label: 'OpenAI' },
-    { value: 'azure', label: 'Azure OpenAI' },
-    { value: 'anthropic', label: 'Anthropic' },
+    ...allPresets.map((preset) => ({
+      value: preset.id,
+      label: `${preset.icon} ${preset.name}`,
+    })),
+    { value: '__custom__', label: '+ 新建预设...' },
   ];
 
+  // 处理预设选择
+  const handleProviderChange = (value: string) => {
+    if (value === '__custom__') {
+      setIsCreateModalOpen(true);
+      return;
+    }
+    const preset = allPresets.find((p) => p.id === value);
+    if (preset) {
+      setConfig({
+        api: {
+          ...config.api,
+          provider: value,
+          api_url: preset.apiUrl || config.api.api_url,
+        },
+      });
+    }
+  };
+
+  // 创建新预设
+  const handleCreatePreset = (newPreset: Omit<ProviderPreset, 'id' | 'isCustom'>) => {
+    const preset: ProviderPreset = {
+      ...newPreset,
+      id: `custom_${Date.now()}`,
+      isCustom: true,
+    };
+    setCustomPresets([...customPresets, preset]);
+    // 自动切换到新创建的预设
+    setConfig({
+      api: {
+        ...config.api,
+        provider: preset.id,
+        api_url: preset.apiUrl || config.api.api_url,
+      },
+    });
+  };
+
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* 顶部标题和状态标签 */}
       <div className="flex items-center justify-between">
         <div>
@@ -149,8 +240,17 @@ export const ControlPanel: React.FC = () => {
             <span className="w-1.5 h-1.5 bg-[#22c55e] rounded-full" />
             API 已配置
           </span>
-          <span className="px-3 py-1.5 bg-[#f0f4ff] text-[#6366f1] rounded-full text-sm font-medium border border-[#e2e8f0]">
-            TTS 待机
+          <span className={cn(
+            'px-3 py-1.5 rounded-full text-sm font-medium border flex items-center gap-1.5 transition-colors duration-200',
+            ttsEnabled
+              ? 'bg-[#f0f4ff] text-[#6366f1] border-[#e2e8f0]'
+              : 'bg-[#f8fafc] text-[#94a3b8] border-[#e2e8f0]'
+          )}>
+            <span className={cn(
+              'w-1.5 h-1.5 rounded-full',
+              ttsEnabled ? 'bg-[#6366f1]' : 'bg-[#94a3b8]'
+            )} />
+            {ttsEnabled ? 'TTS 待机' : 'TTS 未启用'}
           </span>
           <span className="px-3 py-1.5 bg-[#fef3c7] text-[#92400e] rounded-full text-sm font-medium border border-[#fde68a]">
             角色: 未设置
@@ -233,7 +333,7 @@ export const ControlPanel: React.FC = () => {
               <label className="block text-sm font-medium text-[#334155] mb-1.5">服务商预设</label>
               <Select
                 value={config.api.provider}
-                onChange={(value) => setConfig({ api: { ...config.api, provider: value } })}
+                onChange={handleProviderChange}
                 options={providerOptions}
                 placeholder="选择服务商"
               />
@@ -255,12 +355,14 @@ export const ControlPanel: React.FC = () => {
               <div className="relative">
                 <input
                   type={showApiKey ? 'text' : 'password'}
+                  autoComplete="new-password"
                   className="input pr-10 focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
                   placeholder="sk-..."
                   value={config.api.api_key}
                   onChange={(e) => setConfig({ api: { ...config.api, api_key: e.target.value } })}
                 />
                 <button
+                  type="button"
                   onClick={() => setShowApiKey(!showApiKey)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#64748b] transition-colors duration-200"
                 >
@@ -327,9 +429,13 @@ export const ControlPanel: React.FC = () => {
                 {['全局默认', '男性默认', '女性默认'].map((role, idx) => (
                   <div key={idx} className="flex items-center gap-3">
                     <span className="w-20 text-sm text-[#64748b]">{role}</span>
-                    <select className="input flex-1 text-sm">
-                      <option>选择角色</option>
-                    </select>
+                    <Select
+                      className="flex-1"
+                      value=""
+                      onChange={() => {}}
+                      options={[{ value: '', label: '选择角色' }]}
+                      placeholder="选择角色"
+                    />
                   </div>
                 ))}
               </div>
@@ -390,8 +496,8 @@ export const ControlPanel: React.FC = () => {
       {/* 辅助模型 */}
       <div className="card hover:shadow-md transition-shadow duration-300">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#f0f4ff] rounded-xl flex items-center justify-center">
-            <Zap className="w-5 h-5 text-[#6366f1]" />
+          <div className="w-10 h-10 bg-[#f0fdf4] rounded-xl flex items-center justify-center">
+            <Zap className="w-5 h-5 text-[#22c55e]" />
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-[#0f172a]">辅助模型</h3>
@@ -430,7 +536,7 @@ export const ControlPanel: React.FC = () => {
               AI 助手
             </button>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#64748b] border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] hover:border-[#94a3b8] transition-all duration-200">
               <Trash2 className="w-4 h-4" />
@@ -443,16 +549,242 @@ export const ControlPanel: React.FC = () => {
           </div>
         </div>
 
-        <div className="relative">
-          <textarea
-            className="input min-h-[200px] resize-none focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
-            placeholder={activePromptTab === 'system' ? '在此输入系统角色设定...' : '在此输入 AI 助手设定...'}
-            value={activePromptTab === 'system' ? systemPrompt : assistantPrompt}
-            onChange={(e) => activePromptTab === 'system' ? setSystemPrompt(e.target.value) : setAssistantPrompt(e.target.value)}
-          />
-          <div className="absolute bottom-3 right-3 text-xs text-[#94a3b8]">
-            {activePromptTab === 'system' ? systemPrompt.length : assistantPrompt.length} 字符
+        {activePromptTab === 'system' ? (
+          <div className="relative">
+            <textarea
+              className="input min-h-[200px] resize-none focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
+              placeholder="在此输入系统角色设定..."
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+            />
+            <div className="absolute bottom-3 right-3 text-xs text-[#94a3b8]">
+              {systemPrompt.length} 字符
+            </div>
           </div>
+        ) : (
+          <AIAssistantChat />
+        )}
+      </div>
+
+      {/* 新建预设弹窗 */}
+      <CreatePresetModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreate={handleCreatePreset}
+      />
+    </div>
+  );
+};
+
+// AI 助手聊天组件
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+const AIAssistantChat: React.FC = () => {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: '1',
+      role: 'assistant',
+      content: '你好呀～我是星野，是 AI Voice Bridge 的虚拟助手。我可以将文字变成有感情的声音，还能理解你说的话哦！有什么想聊的吗？',
+      timestamp: new Date(),
+    },
+  ]);
+  const [inputValue, setInputValue] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  React.useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSend = () => {
+    if (!inputValue.trim()) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: inputValue,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInputValue('');
+
+    // 模拟 AI 回复
+    setTimeout(() => {
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: '收到你的消息啦！我正在思考如何回答...',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+    }, 1000);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleCopy = async (message: Message) => {
+    await navigator.clipboard.writeText(message.content);
+    setCopiedId(message.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleRegenerate = (messageId: string) => {
+    // 模拟重新生成：删除该消息并重新生成
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    setTimeout(() => {
+      const assistantMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: '让我重新思考一下这个问题...',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+    }, 500);
+  };
+
+  const handlePlayVoice = (message: Message) => {
+    // 播放语音功能占位
+    console.log('播放语音:', message.content);
+  };
+
+  // 判断是否为最后一条 AI 消息
+  const getLastAssistantMessageId = () => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant') {
+        return messages[i].id;
+      }
+    }
+    return null;
+  };
+
+  const lastAssistantId = getLastAssistantMessageId();
+
+  return (
+    <div className="flex flex-col h-[400px]">
+      {/* 消息列表 */}
+      <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+        {messages.map((message) => {
+          const isLastAssistant = message.id === lastAssistantId && message.role === 'assistant';
+          return (
+            <div
+              key={message.id}
+              className={cn(
+                'flex gap-3',
+                message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
+              )}
+            >
+              {/* 头像 */}
+              <div
+                className={cn(
+                  'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
+                  message.role === 'user'
+                    ? 'bg-[#6366f1]'
+                    : 'bg-gradient-to-br from-[#fbbf24] to-[#f59e0b]'
+                )}
+              >
+                {message.role === 'user' ? (
+                  <span className="text-white text-sm font-medium">我</span>
+                ) : (
+                  <Sparkles className="w-4 h-4 text-white" />
+                )}
+              </div>
+
+              {/* 消息内容 */}
+              <div className="flex flex-col gap-1.5 max-w-[70%]">
+                <div
+                  className={cn(
+                    'px-4 py-2.5 rounded-2xl text-sm',
+                    message.role === 'user'
+                      ? 'bg-[#6366f1] text-white rounded-tr-sm'
+                      : 'bg-[#f8fafc] text-[#334155] border border-[#e2e8f0] rounded-tl-sm'
+                  )}
+                >
+                  {message.content}
+                </div>
+
+                {/* 最后一条 AI 消息的操作按钮 */}
+                {isLastAssistant && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <button
+                      onClick={() => handlePlayVoice(message)}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#6366f1] bg-[#f0f4ff] rounded-lg hover:bg-[#6366f1] hover:text-white transition-all duration-200"
+                    >
+                      <Play className="w-3 h-3" />
+                      播放语音
+                    </button>
+                    <button
+                      onClick={() => handleRegenerate(message.id)}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#64748b] bg-[#f8fafc] border border-[#e2e8f0] rounded-lg hover:border-[#6366f1] hover:text-[#6366f1] transition-all duration-200"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      重新生成
+                    </button>
+                    <button
+                      onClick={() => handleCopy(message)}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#64748b] bg-[#f8fafc] border border-[#e2e8f0] rounded-lg hover:border-[#6366f1] hover:text-[#6366f1] transition-all duration-200"
+                    >
+                      {copiedId === message.id ? (
+                        <>
+                          <Check className="w-3 h-3 text-[#22c55e]" />
+                          <span className="text-[#22c55e]">已复制</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          复制
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* 输入框 */}
+      <div className="relative">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyPress={handleKeyPress}
+          placeholder="输入消息，或按住空格键说话..."
+          className="w-full pl-4 pr-24 py-3 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          <button className="p-2 text-[#94a3b8] hover:text-[#6366f1] transition-colors duration-200">
+            <Volume2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={!inputValue.trim()}
+            className={cn(
+              'p-2 rounded-lg transition-all duration-200',
+              inputValue.trim()
+                ? 'bg-[#6366f1] text-white hover:bg-[#4f46e5]'
+                : 'bg-[#e2e8f0] text-[#94a3b8] cursor-not-allowed'
+            )}
+          >
+            <Play className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>

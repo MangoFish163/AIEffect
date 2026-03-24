@@ -30,7 +30,7 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-screen overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-auto">
         {renderPage()}
       </main>
     </div>

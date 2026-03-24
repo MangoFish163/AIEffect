@@ -12,7 +12,7 @@ interface AppState {
 
 const defaultConfig: AppConfig = {
   api: {
-    provider: 'custom',
+    provider: 'deepseek',
     api_url: '',
     api_key: '',
     model_name: '',

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, Trash2, RotateCw, Type, Palette, Monitor, History, Plus } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Eye, EyeOff, Trash2, RotateCw, Type, Palette, Monitor, History, Plus, X, Check } from 'lucide-react';
 import { useAppStore } from '../store';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -8,24 +8,143 @@ function cn(...inputs: any[]) {
   return twMerge(clsx(inputs));
 }
 
+interface ColorPreset {
+  id: string;
+  name: string;
+  color: string;
+  isCustom?: boolean;
+}
+
+const defaultColorPresets: ColorPreset[] = [
+  { id: 'white', name: '白色', color: '#ffffff' },
+  { id: 'black', name: '黑色', color: '#000000' },
+  { id: 'pink', name: '粉色', color: '#ec4899' },
+  { id: 'yellow', name: '黄色', color: '#eab308' },
+  { id: 'cyan', name: '青色', color: '#06b6d4' },
+  { id: 'gold', name: '金色', color: '#f59e0b' },
+  { id: 'darkblue', name: '深蓝灰', color: '#475569' },
+];
+
 export const SubtitleVisual: React.FC = () => {
   const { config, setConfig } = useAppStore();
   const [previewText, setPreviewText] = useState('输入测试字幕...');
   const [activeTab, setActiveTab] = useState<'page' | 'stream'>('page');
 
-  return (
-    <div className="flex h-full">
-      <div className="w-96 bg-white border-r border-[#e2e8f0] flex flex-col overflow-y-auto">
-        <div className="p-6">
-          <h1 className="text-3xl font-bold text-[#0f172a] mb-2">
-            字幕视觉
-          </h1>
-          <p className="text-[#64748b] text-sm">
-            自定义悬浮窗外行为与外观，打造沉浸式阅读体验。
-          </p>
-        </div>
+  const [fontColorPresets, setFontColorPresets] = useState<ColorPreset[]>(defaultColorPresets);
+  const [bgColorPresets, setBgColorPresets] = useState<ColorPreset[]>([
+    { id: 'aurora', name: '科技极光', color: '#6366f1' },
+    { id: 'custom', name: '自定义颜色', color: '#0a0a0f' },
+  ]);
 
-        <div className="px-6 pb-6 space-y-6">
+  const [selectedFontColor, setSelectedFontColor] = useState('#ffffff');
+  const [selectedBgColor, setSelectedBgColor] = useState('#6366f1');
+  const [fontColorDropdownOpen, setFontColorDropdownOpen] = useState(false);
+  const [bgColorDropdownOpen, setBgColorDropdownOpen] = useState(false);
+
+  const [saveColorModalOpen, setSaveColorModalOpen] = useState(false);
+  const [saveColorType, setSaveColorType] = useState<'font' | 'bg'>('font');
+  const [saveColorName, setSaveColorName] = useState('');
+  const [saveColorValue, setSaveColorValue] = useState('');
+
+  const fontDropdownRef = useRef<HTMLDivElement>(null);
+  const bgDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (fontDropdownRef.current && !fontDropdownRef.current.contains(event.target as Node)) {
+        setFontColorDropdownOpen(false);
+      }
+      if (bgDropdownRef.current && !bgDropdownRef.current.contains(event.target as Node)) {
+        setBgColorDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSaveColor = () => {
+    if (!saveColorName.trim()) return;
+
+    const newPreset: ColorPreset = {
+      id: `custom-${Date.now()}`,
+      name: saveColorName.trim(),
+      color: saveColorValue,
+      isCustom: true,
+    };
+
+    if (saveColorType === 'font') {
+      setFontColorPresets([...fontColorPresets, newPreset]);
+      setSelectedFontColor(saveColorValue);
+    } else {
+      setBgColorPresets([...bgColorPresets, newPreset]);
+      setSelectedBgColor(saveColorValue);
+    }
+
+    setSaveColorModalOpen(false);
+    setSaveColorName('');
+  };
+
+  const handleDeletePreset = (type: 'font' | 'bg', id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (type === 'font') {
+      const preset = fontColorPresets.find(p => p.id === id);
+      if (preset && selectedFontColor === preset.color) {
+        setSelectedFontColor(defaultColorPresets[0].color);
+      }
+      setFontColorPresets(fontColorPresets.filter(p => p.id !== id));
+    } else {
+      const preset = bgColorPresets.find(p => p.id === id);
+      if (preset && selectedBgColor === preset.color) {
+        setSelectedBgColor(bgColorPresets[0].color);
+      }
+      setBgColorPresets(bgColorPresets.filter(p => p.id !== id));
+    }
+  };
+
+  const openSaveModal = (type: 'font' | 'bg', color: string) => {
+    setSaveColorType(type);
+    setSaveColorValue(color);
+    setSaveColorName('');
+    setSaveColorModalOpen(true);
+  };
+
+  const getColorDot = (color: string) => {
+    const colorMap: Record<string, string> = {
+      '#ffffff': 'bg-white',
+      '#000000': 'bg-black',
+      '#ec4899': 'bg-pink-500',
+      '#eab308': 'bg-yellow-500',
+      '#06b6d4': 'bg-cyan-500',
+      '#f59e0b': 'bg-amber-500',
+      '#475569': 'bg-slate-600',
+    };
+    return colorMap[color] || '';
+  };
+
+  const getCurrentFontPreset = () => {
+    return fontColorPresets.find(p => p.color === selectedFontColor) || fontColorPresets[0];
+  };
+
+  const getCurrentBgPreset = () => {
+    return bgColorPresets.find(p => p.color === selectedBgColor) || bgColorPresets[0];
+  };
+
+  return (
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      {/* 共同页头 */}
+      <div>
+        <h1 className="text-3xl font-bold text-[#0f172a] mb-2">
+          字幕视觉
+        </h1>
+        <p className="text-[#64748b] text-sm">
+          自定义悬浮窗外行为与外观，打造沉浸式阅读体验。
+        </p>
+      </div>
+
+      {/* 左右两栏内容区 */}
+      <div className="flex gap-6">
+        {/* 左侧：配置区 */}
+        <div className="w-96 flex-shrink-0 space-y-6">
           <div className="card">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-[#f0f4ff] rounded-xl flex items-center justify-center">
@@ -91,28 +210,149 @@ export const SubtitleVisual: React.FC = () => {
             </div>
 
             <div className="space-y-5">
+              {/* 字体颜色 */}
               <div>
                 <label className="block text-sm font-medium text-[#334155] mb-2">字体颜色</label>
-                <div className="flex items-center gap-3">
-                  <button className="w-10 h-10 border-2 border-[#e2e8f0] rounded-lg bg-white flex items-center justify-center">
-                    <div className="w-5 h-5 bg-white border border-[#e2e8f0] rounded" />
-                  </button>
-                  <span className="text-sm text-[#64748b]">自定义颜色</span>
-                  <div className="flex-1" />
-                  <input type="color" value="#ffffff" className="w-8 h-8 rounded cursor-pointer" />
-                  <button className="w-8 h-8 rounded-lg bg-[#f8fafc] flex items-center justify-center hover:bg-[#e2e8f0]">
+                <div className="flex items-center gap-2" ref={fontDropdownRef}>
+                  <div className="relative flex-1">
+                    <button
+                      onClick={() => setFontColorDropdownOpen(!fontColorDropdownOpen)}
+                      className="w-full flex items-center gap-2 px-3 py-2 border border-[#e2e8f0] rounded-lg bg-white hover:border-[#6366f1] transition-colors"
+                    >
+                      <div
+                        className="w-4 h-4 rounded border border-[#e2e8f0]"
+                        style={{ backgroundColor: selectedFontColor }}
+                      />
+                      <span className="text-sm text-[#334155] flex-1 text-left">
+                        {getCurrentFontPreset().name}
+                      </span>
+                      <svg className="w-4 h-4 text-[#94a3b8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {fontColorDropdownOpen && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e2e8f0] rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                        {fontColorPresets.map((preset) => (
+                          <div
+                            key={preset.id}
+                            onClick={() => {
+                              setSelectedFontColor(preset.color);
+                              setFontColorDropdownOpen(false);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 hover:bg-[#f8fafc] cursor-pointer"
+                          >
+                            <div
+                              className="w-4 h-4 rounded-full border border-[#e2e8f0]"
+                              style={{ backgroundColor: preset.color }}
+                            />
+                            <span className="text-sm text-[#334155] flex-1">{preset.name}</span>
+                            {selectedFontColor === preset.color && (
+                              <Check className="w-4 h-4 text-[#6366f1]" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <input
+                    type="color"
+                    value={selectedFontColor}
+                    onChange={(e) => setSelectedFontColor(e.target.value)}
+                    className="w-9 h-9 rounded-lg cursor-pointer border border-[#e2e8f0] p-0.5"
+                  />
+
+                  <button
+                    onClick={() => openSaveModal('font', selectedFontColor)}
+                    className="w-9 h-9 rounded-lg bg-[#f8fafc] flex items-center justify-center hover:bg-[#e2e8f0] border border-[#e2e8f0]"
+                    title="保存为预设"
+                  >
                     <Plus className="w-4 h-4 text-[#64748b]" />
                   </button>
+
+                  {getCurrentFontPreset().isCustom && (
+                    <button
+                      onClick={(e) => handleDeletePreset('font', getCurrentFontPreset().id, e)}
+                      className="w-9 h-9 rounded-lg bg-[#fef2f2] flex items-center justify-center hover:bg-[#fee2e2] border border-[#fecaca]"
+                      title="删除预设"
+                    >
+                      <X className="w-4 h-4 text-[#ef4444]" />
+                    </button>
+                  )}
                 </div>
               </div>
 
+              {/* 背景颜色 */}
               <div>
                 <label className="block text-sm font-medium text-[#334155] mb-2">背景颜色</label>
-                <div className="flex items-center gap-3">
-                  <button className="w-10 h-10 border-2 border-[#6366f1] rounded-lg bg-gradient-to-br from-[#6366f1] via-[#818cf8] to-[#8b5cf6]" />
-                  <span className="text-sm text-[#64748b]">科技极光</span>
-                  <div className="flex-1" />
-                  <input type="color" value="#0a0a0f" className="w-8 h-8 rounded cursor-pointer" />
+                <div className="flex items-center gap-2" ref={bgDropdownRef}>
+                  <div className="relative flex-1">
+                    <button
+                      onClick={() => setBgColorDropdownOpen(!bgColorDropdownOpen)}
+                      className="w-full flex items-center gap-2 px-3 py-2 border border-[#e2e8f0] rounded-lg bg-white hover:border-[#6366f1] transition-colors"
+                    >
+                      <div
+                        className="w-4 h-4 rounded border border-[#e2e8f0]"
+                        style={{ backgroundColor: selectedBgColor }}
+                      />
+                      <span className="text-sm text-[#334155] flex-1 text-left">
+                        {getCurrentBgPreset().name}
+                      </span>
+                      <svg className="w-4 h-4 text-[#94a3b8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {bgColorDropdownOpen && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#e2e8f0] rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                        {bgColorPresets.map((preset) => (
+                          <div
+                            key={preset.id}
+                            onClick={() => {
+                              setSelectedBgColor(preset.color);
+                              setBgColorDropdownOpen(false);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 hover:bg-[#f8fafc] cursor-pointer"
+                          >
+                            <div
+                              className="w-4 h-4 rounded-full border border-[#e2e8f0]"
+                              style={{ backgroundColor: preset.color }}
+                            />
+                            <span className="text-sm text-[#334155] flex-1">{preset.name}</span>
+                            {selectedBgColor === preset.color && (
+                              <Check className="w-4 h-4 text-[#6366f1]" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <input
+                    type="color"
+                    value={selectedBgColor}
+                    onChange={(e) => setSelectedBgColor(e.target.value)}
+                    className="w-9 h-9 rounded-lg cursor-pointer border border-[#e2e8f0] p-0.5"
+                  />
+
+                  <button
+                    onClick={() => openSaveModal('bg', selectedBgColor)}
+                    className="w-9 h-9 rounded-lg bg-[#f8fafc] flex items-center justify-center hover:bg-[#e2e8f0] border border-[#e2e8f0]"
+                    title="保存为预设"
+                  >
+                    <Plus className="w-4 h-4 text-[#64748b]" />
+                  </button>
+
+                  {getCurrentBgPreset().isCustom && (
+                    <button
+                      onClick={(e) => handleDeletePreset('bg', getCurrentBgPreset().id, e)}
+                      className="w-9 h-9 rounded-lg bg-[#fef2f2] flex items-center justify-center hover:bg-[#fee2e2] border border-[#fecaca]"
+                      title="删除预设"
+                    >
+                      <X className="w-4 h-4 text-[#ef4444]" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -164,10 +404,9 @@ export const SubtitleVisual: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="flex-1 p-6 bg-gradient-to-br from-[#f0f4ff] via-[#f8fafc] to-[#e8f0ff]">
-        <div className="h-full flex flex-col">
+        {/* 右侧：实时预览区 */}
+        <div className="flex-1 min-w-0 bg-gradient-to-br from-[#f0f4ff] via-[#f8fafc] to-[#e8f0ff] rounded-2xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-[#334155]">实时预览</h2>
             <div className="flex bg-white rounded-xl p-1 border border-[#e2e8f0] shadow-sm">
@@ -196,10 +435,10 @@ export const SubtitleVisual: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center justify-center">
             <div className="w-full max-w-2xl">
               <p className="text-center text-[#94a3b8] mb-4">字幕页面 - Galgame 风格悬浮字幕</p>
-              
+
               <div className="relative bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] rounded-2xl p-1 shadow-2xl">
                 <div className="bg-white/10 backdrop-blur-sm rounded-t-xl px-4 py-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -207,45 +446,26 @@ export const SubtitleVisual: React.FC = () => {
                     <div className="w-3 h-3 rounded-full bg-[#f59e0b]" />
                     <div className="w-3 h-3 rounded-full bg-[#22c55e]" />
                   </div>
-                  <div className="flex items-center gap-3 text-white/80 text-xs">
-                    <span>透明</span>
-                    <div className="w-12 h-1 bg-white/30 rounded-full overflow-hidden">
-                      <div className="w-1/2 h-full bg-[#6366f1] rounded-full" />
-                    </div>
-                    <span>重置</span>
-                    <div className="w-12 h-1 bg-white/30 rounded-full overflow-hidden">
-                      <div className="w-1/2 h-full bg-[#6366f1] rounded-full" />
-                    </div>
-                    <span>5秒关闭</span>
-                    <div className="w-12 h-1 bg-white/30 rounded-full overflow-hidden">
-                      <div className="w-1/2 h-full bg-[#6366f1] rounded-full" />
-                    </div>
-                    <span>穿透</span>
-                    <div className="w-12 h-1 bg-white/30 rounded-full overflow-hidden">
-                      <div className="w-1/2 h-full bg-[#6366f1] rounded-full" />
-                    </div>
-                    <span>30ms</span>
-                  </div>
                   <button className="text-white/60 hover:text-white">
-                    <X className="w-4 h-4" />
+                    <CloseIcon className="w-4 h-4" />
                   </button>
                 </div>
-                
-                <div className="p-6 relative overflow-hidden">
+
+                <div className="p-6 relative overflow-hidden rounded-b-xl" style={{ backgroundColor: selectedBgColor + Math.round(config.subtitle.opacity * 255).toString(16).padStart(2, '0') }}>
                   <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-[#22c55e] animate-pulse" />
                   <div className="absolute inset-0 bg-gradient-to-tr from-[#6366f1]/10 via-transparent to-[#8b5cf6]/10 pointer-events-none" />
                   <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#6366f1]/20 rounded-full blur-3xl" />
                   <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-[#8b5cf6]/20 rounded-full blur-3xl" />
-                  
+
                   <p className="text-sm text-white/60 mb-3">💬 查看历史记录</p>
-                  <p className="text-white leading-relaxed" style={{ fontSize: config.subtitle.font_size }}>
+                  <p className="leading-relaxed break-words" style={{ fontSize: config.subtitle.font_size, color: selectedFontColor }}>
                     "猛地咽回了翠色的眼睛，作势抬脚要踢你，靴尖蹭到你椅腿又收了回去，褐色的碎发被风刮得糊了半张脸，耳尖唰地红了个透，声音凶得像炸毛的小狼崽"谁要你暖心？西帝国那群狗崽子见了我都得绕着走，就算被发现了我一箭一个用串成插在城墙上，能抓得住我？"顿了顿，指尖无意识抠了抠腰问的剑鞘，眼珠子转了转，故意装出不看你的样子"不过话说回来，凭啥要跑他们的地盘去？不看烦不烦的样子？"指了指鹿、猎鹿、射靶、摸鱼摸贼随便你挑，我主场还能欺负你不成？省得跑那么远路上还要花我的冤枉钱——哦不对，反正你掏钱买马不要钱啊？"顿时翻了个大大的白眼，叉着腰哼了一声"抠买买马不要钱啊？至少少兵招不到，还能顺便摸鱼顺便把新弓，亏了你出的主意靠谱？"说完先暗自封了自己的"纳尔纳帝国的弓箭手，嘴角却压不住地往上翘，藏在碎发后面的耳尖红得都快透明了"
                   </p>
-                  
+
                   <div className="mt-6 flex items-center gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <Pen className="w-4 h-4 text-[#6366f1]" />
+                        <PenIcon className="w-4 h-4 text-[#6366f1]" />
                         <input
                           type="text"
                           value={previewText}
@@ -265,11 +485,60 @@ export const SubtitleVisual: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 保存自定义颜色弹窗 */}
+      {saveColorModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-96 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-[#0f172a]">保存自定义颜色</h3>
+              <button
+                onClick={() => setSaveColorModalOpen(false)}
+                className="text-[#94a3b8] hover:text-[#64748b]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-[#64748b] mb-4">
+              为当前{saveColorType === 'font' ? '字体' : '背景'}颜色命名，保存到预设库中。
+            </p>
+            <div className="flex items-center gap-3 mb-6">
+              <div
+                className="w-10 h-10 rounded-lg border border-[#e2e8f0]"
+                style={{ backgroundColor: saveColorValue }}
+              />
+              <input
+                type="text"
+                value={saveColorName}
+                onChange={(e) => setSaveColorName(e.target.value)}
+                placeholder="输入颜色名称，如：樱花粉"
+                className="flex-1 px-3 py-2 border border-[#e2e8f0] rounded-lg text-sm focus:border-[#6366f1] focus:outline-none"
+                onKeyPress={(e) => e.key === 'Enter' && handleSaveColor()}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setSaveColorModalOpen(false)}
+                className="px-4 py-2 text-sm text-[#64748b] hover:text-[#334155] transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveColor}
+                disabled={!saveColorName.trim()}
+                className="px-4 py-2 bg-[#6366f1] text-white text-sm rounded-lg hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-function X({ className }: { className?: string }) {
+function CloseIcon({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -289,7 +558,7 @@ function X({ className }: { className?: string }) {
   );
 }
 
-function Pen({ className }: { className?: string }) {
+function PenIcon({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

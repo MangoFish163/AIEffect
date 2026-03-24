@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Search, Filter, Download, RefreshCw, Trash2, Pause, Play, Terminal, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { Switch } from '../components';
+import { Switch, Select } from '../components';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -13,6 +13,10 @@ export const LogsViewer: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState('50');
+  const [exportFormat, setExportFormat] = useState('json');
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   const logs = [
     { time: '21:48:39', level: 'INFO', module: '[app.lib.a]', message: '获取日志列表: level=None, module=None, search=None, page=1, limit=50' },
@@ -28,11 +32,41 @@ export const LogsViewer: React.FC = () => {
     { time: '21:42:24', level: 'INFO', module: '[app.lib.a]', message: 'New SSE subscriber for stream events' },
   ];
 
-  const totalPages = 2;
+  const totalPages = 6;
+
+  const exportOptions = [
+    { value: 'json', label: 'JSON' },
+    { value: 'csv', label: 'CSV' },
+    { value: 'txt', label: 'TXT' },
+  ];
+
+  const handleExport = (format: string) => {
+    setExportFormat(format);
+    setIsExportOpen(false);
+    // 实际导出逻辑
+    console.log(`导出为 ${format.toUpperCase()} 格式`);
+  };
+
+  // 点击外部关闭导出下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(event.target as Node)) {
+        setIsExportOpen(false);
+      }
+    };
+
+    if (isExportOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isExportOpen]);
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="h-full flex flex-col p-6">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-[#0f172a] mb-2">
             系统日志
@@ -60,18 +94,40 @@ export const LogsViewer: React.FC = () => {
           <button className="p-2 text-[#94a3b8] hover:text-[#64748b] hover:bg-[#f8fafc] rounded-xl transition-all duration-200">
             <Trash2 className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-2">
-            <button className="p-2 text-[#94a3b8] hover:text-[#64748b] hover:bg-[#f8fafc] rounded-xl transition-all duration-200">
+
+          {/* 导出下拉菜单 */}
+          <div ref={exportRef} className="relative">
+            <button
+              onClick={() => setIsExportOpen(!isExportOpen)}
+              className="flex items-center justify-center gap-2 w-24 px-4 py-2 text-[#64748b] bg-white border border-[#e2e8f0] rounded-xl text-sm font-medium hover:bg-[#f8fafc] hover:border-[#94a3b8] transition-all duration-200"
+            >
               <Download className="w-4 h-4" />
+              导出
             </button>
-            <select className="bg-white text-[#64748b] text-sm rounded-xl px-3 py-2 border border-[#e2e8f0] hover:border-[#94a3b8] transition-all duration-200">
-              <option>导出</option>
-            </select>
+
+            {isExportOpen && (
+              <div className="absolute right-0 top-full mt-1 w-24 bg-white border border-[#e2e8f0] rounded-xl shadow-lg overflow-hidden z-50">
+                {exportOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleExport(option.value)}
+                    className={cn(
+                      'w-full px-4 py-2.5 text-left text-sm transition-colors duration-150',
+                      exportFormat === option.value
+                        ? 'bg-[#f0f4ff] text-[#6366f1] font-medium'
+                        : 'text-[#334155] hover:bg-[#f8fafc]'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-4 flex-wrap">
+      <div className="flex items-center gap-4 flex-wrap mb-6">
         <div className="flex-1 min-w-[200px] relative">
           <Search className="w-4 h-4 text-[#94a3b8] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -83,19 +139,20 @@ export const LogsViewer: React.FC = () => {
           />
         </div>
         <div className="flex items-center gap-3">
-          <select
-            className="px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
+          <Select
             value={levelFilter}
-            onChange={(e) => setLevelFilter(e.target.value)}
-          >
-            <option value="all">级别</option>
-            <option value="info">INFO</option>
-            <option value="warn">WARN</option>
-            <option value="error">ERROR</option>
-          </select>
-          <select className="px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200">
-            <option>模块筛选...</option>
-          </select>
+            onChange={(value) => setLevelFilter(value)}
+            className="w-auto min-w-[110px]"
+            options={[
+              { value: 'all', label: '全部级别' },
+              { value: 'debug', label: 'DEBUG' },
+              { value: 'info', label: 'INFO' },
+              { value: 'warn', label: 'WARN' },
+              { value: 'error', label: 'ERROR' },
+              { value: 'success', label: 'SUCCESS' }
+            ]}
+            placeholder="级别"
+          />
           <button className="px-4 py-2.5 text-[#6366f1] bg-[#f0f4ff] border border-[#6366f1]/20 rounded-xl text-sm font-medium hover:bg-[#e0e7ff] hover:border-[#6366f1]/30 transition-all duration-200 flex items-center gap-2">
             <Terminal className="w-4 h-4" />
             测试日志
@@ -103,14 +160,15 @@ export const LogsViewer: React.FC = () => {
         </div>
 
         <div className="ml-auto flex items-center gap-6 text-sm">
-          <span className="text-[#64748b]">总计: <span className="font-bold text-[#6366f1]">147</span></span>
+          <span className="text-[#64748b]">总计: <span className="font-bold text-[#6366f1]">260</span></span>
           <span className="text-[#64748b]">错误: <span className="font-bold text-[#ef4444]">0</span></span>
           <span className="text-[#64748b]">警告: <span className="font-bold text-[#f59e0b]">1</span></span>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-[#e2e8f0] overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 bg-[#f8fafc] border-b border-[#e2e8f0]">
+      {/* 日志表格区域 - 自适应高度 */}
+      <div className="flex-1 bg-white rounded-2xl shadow-sm border border-[#e2e8f0] overflow-hidden flex flex-col min-h-0">
+        <div className="flex items-center gap-2 px-4 py-3 bg-[#f8fafc] border-b border-[#e2e8f0] shrink-0">
           <Terminal className="w-4 h-4 text-[#94a3b8]" />
           <span className="text-sm font-mono text-[#64748b]">console_output.log</span>
           {isLive && (
@@ -121,7 +179,8 @@ export const LogsViewer: React.FC = () => {
           )}
         </div>
 
-        <div className="max-h-[500px] overflow-y-auto font-mono text-sm">
+        {/* 日志列表 - 带滚动条 */}
+        <div className="flex-1 overflow-y-auto font-mono text-sm min-h-0">
           {logs.map((log, idx) => (
             <div
               key={idx}
@@ -146,31 +205,44 @@ export const LogsViewer: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
+      {/* 分页区域 */}
+      <div className="flex items-center justify-between mt-6 shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-sm text-[#64748b]">每页</span>
-          <select className="px-3 py-2 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200">
-            <option>50</option>
-          </select>
+          <Select
+            className="w-20"
+            value={pageSize}
+            onChange={(value) => setPageSize(value)}
+            options={[
+              { value: '25', label: '25' },
+              { value: '50', label: '50' },
+              { value: '100', label: '100' },
+              { value: '200', label: '200' }
+            ]}
+            placeholder="50"
+            placement="top"
+          />
           <span className="text-sm text-[#64748b]">条</span>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="text-sm text-[#64748b]">第 {currentPage} / {totalPages} 页</span>
           <div className="flex items-center gap-1">
-            <button 
+            <button
+              onClick={() => setCurrentPage(1)}
               className="p-2 text-[#94a3b8] hover:text-[#64748b] hover:bg-[#f8fafc] rounded-xl transition-all duration-200 disabled:opacity-50"
               disabled={currentPage === 1}
             >
               <ChevronsLeft className="w-4 h-4" />
             </button>
-            <button 
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               className="p-2 text-[#94a3b8] hover:text-[#64748b] hover:bg-[#f8fafc] rounded-xl transition-all duration-200 disabled:opacity-50"
               disabled={currentPage === 1}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            {[1, 2].map((page) => (
+            {[1, 2, 3].map((page) => (
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
@@ -184,13 +256,15 @@ export const LogsViewer: React.FC = () => {
                 {page}
               </button>
             ))}
-            <button 
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               className="p-2 text-[#94a3b8] hover:text-[#64748b] hover:bg-[#f8fafc] rounded-xl transition-all duration-200 disabled:opacity-50"
               disabled={currentPage === totalPages}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
-            <button 
+            <button
+              onClick={() => setCurrentPage(totalPages)}
               className="p-2 text-[#94a3b8] hover:text-[#64748b] hover:bg-[#f8fafc] rounded-xl transition-all duration-200 disabled:opacity-50"
               disabled={currentPage === totalPages}
             >

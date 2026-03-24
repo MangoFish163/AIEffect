@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Subtitles, Mic, ClipboardList, FileText, Zap } from 'lucide-react';
+import { Settings, Subtitles, Mic, ClipboardList, FileText, Zap, RefreshCw } from 'lucide-react';
 import { PageType } from '../types';
 import { useAppStore } from '../store';
 import { clsx, type ClassValue } from 'clsx';
@@ -22,7 +22,7 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, isActive, onClick }) => 
     <button
       onClick={onClick}
       className={cn(
-        'flex items-center gap-3 w-full px-4 py-3 text-left transition-all duration-200 rounded-xl mx-2',
+        'flex items-center gap-3 w-[calc(100%-1rem)] px-4 py-3 text-left transition-all duration-200 rounded-xl mx-2',
         isActive
           ? 'bg-[#6366f1] text-white shadow-md'
           : 'text-[#64748b] hover:bg-[#f8fafc] hover:text-[#334155]'
@@ -74,18 +74,17 @@ export const Sidebar: React.FC = () => {
       </nav>
 
       <div className="p-4 border-t border-[#e2e8f0]">
-        <div className="bg-[#f0f4ff] rounded-xl p-4 border border-[#e2e8f0]">
-          <p className="text-xs font-semibold text-[#6366f1] mb-2">服务状态</p>
+        <div className="bg-white rounded-xl p-4 border border-[#e2e8f0]">
+          <p className="text-sm font-semibold text-[#6366f1] mb-1">服务状态</p>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 bg-[#22c55e] rounded-full animate-pulse" />
-            <span className="text-sm text-[#6366f1]">服务正在运行</span>
+            <span className="text-sm text-[#64748b]">服务正在运行端口: 8500</span>
           </div>
-          <p className="text-xs text-[#818cf8] mt-1.5">端口: 8500</p>
         </div>
         <button className="w-full mt-4 py-2.5 px-4 text-sm text-[#ef4444] border border-[#ef4444]/20 rounded-xl hover:bg-[#fef2f2] transition-colors font-medium">
           <div className="flex items-center justify-center gap-2">
-            <Power className="w-4 h-4" />
-            停止服务
+            <RefreshCw className="w-4 h-4" />
+            重启服务
           </div>
         </button>
       </div>
