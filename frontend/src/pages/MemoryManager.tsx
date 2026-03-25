@@ -11,6 +11,10 @@ import {
   X,
   ChevronRight,
   Folder,
+  Monitor,
+  HardDrive,
+  File,
+  MonitorSmartphone,
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -36,10 +40,18 @@ interface BrowseResponse {
   items: FileItem[];
 }
 
+interface DriveInfo {
+  letter: string;
+  path: string;
+  type: string;
+  name: string;
+}
+
 interface DirectoryBrowserModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (path: string) => void;
+  onUseDefault?: () => void;
   initialPath?: string;
 }
 
@@ -47,6 +59,7 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
   isOpen,
   onClose,
   onSelect,
+  onUseDefault,
   initialPath,
 }) => {
   const [currentPath, setCurrentPath] = useState(initialPath || '');
@@ -54,10 +67,14 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
   const [parentPath, setParentPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDrives, setShowDrives] = useState(false);
+  const [drives, setDrives] = useState<DriveInfo[]>([]);
+  const [loadingDrives, setLoadingDrives] = useState(false);
 
   const fetchDirectory = async (path: string | null) => {
     setLoading(true);
     setError(null);
+    setShowDrives(false);
     try {
       const url = path
         ? `${API_BASE_URL}/api/files/browse?path=${encodeURIComponent(path)}`
@@ -70,7 +87,14 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
       if (result.code === 200) {
         const data: BrowseResponse = result.data;
         setCurrentPath(data.current_path);
-        setItems(data.items.filter((item) => item.type === 'directory'));
+        // 排序：目录在前，文件在后
+        const sortedItems = [...data.items].sort((a, b) => {
+          if (a.type === b.type) {
+            return a.name.localeCompare(b.name);
+          }
+          return a.type === 'directory' ? -1 : 1;
+        });
+        setItems(sortedItems);
         setParentPath(data.parent_path);
       } else {
         setError(result.message || '加载目录失败');
@@ -80,6 +104,31 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchDrives = async () => {
+    setLoadingDrives(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/files/drives`);
+      if (!response.ok) {
+        throw new Error(`HTTP 错误：${response.status}`);
+      }
+      const result = await response.json();
+      if (result.code === 200 && result.data) {
+        setDrives(result.data.drives || []);
+        setShowDrives(true);
+      } else {
+        setError(result.message || '加载盘符失败');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '网络请求失败');
+    } finally {
+      setLoadingDrives(false);
+    }
+  };
+
+  const handleSelectDrive = (drivePath: string) => {
+    fetchDirectory(drivePath);
   };
 
   useEffect(() => {
@@ -104,50 +153,129 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
         </div>
 
         <div className="mb-4">
-          <div className="text-xs text-[#64748b] mb-1">当前路径</div>
-          <div className="px-3 py-2 bg-[#f1f5f9] rounded-lg text-sm text-[#334155] break-all">
-            {currentPath}
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-xs text-[#64748b]">当前路径</div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onUseDefault}
+                className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-[#6366f1] bg-[#f0f4ff] rounded-md hover:bg-[#e0e7ff] transition-colors"
+                title="使用系统默认窗口"
+              >
+                <MonitorSmartphone className="w-3.5 h-3.5" />
+                默认窗口
+              </button>
+              <button
+                onClick={fetchDrives}
+                disabled={loadingDrives}
+                className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-[#6366f1] bg-[#f0f4ff] rounded-md hover:bg-[#e0e7ff] transition-colors disabled:opacity-50"
+                title="选择盘符"
+              >
+                <Monitor className="w-3.5 h-3.5" />
+                此电脑
+              </button>
+            </div>
           </div>
+          <input
+            type="text"
+            className="w-full px-3 py-2 bg-[#f1f5f9] rounded-lg text-sm text-[#334155] focus:bg-white focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200 outline-none"
+            value={currentPath}
+            onChange={(e) => setCurrentPath(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                fetchDirectory(currentPath || null);
+              }
+            }}
+            placeholder="输入路径后按回车跳转"
+          />
         </div>
 
-        {parentPath && (
+        <div className="flex gap-2 mb-2">
           <button
-            onClick={() => fetchDirectory(parentPath)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#64748b] hover:bg-[#f1f5f9] rounded-lg transition-colors mb-2"
+            onClick={() => parentPath && fetchDirectory(parentPath)}
+            disabled={!parentPath}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-[#64748b] hover:bg-[#f1f5f9] disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors"
           >
             <ChevronRight className="w-4 h-4 rotate-180" />
-            返回上级目录
+            返回上一级
           </button>
-        )}
+          <button
+            onClick={() => fetchDirectory(initialPath || null)}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-[#64748b] hover:bg-[#f1f5f9] rounded-lg transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            恢复默认
+          </button>
+        </div>
 
-        <div className="border border-[#e2e8f0] rounded-xl max-h-64 overflow-y-auto">
-          {loading ? (
-            <div className="p-8 text-center text-[#94a3b8]">加载中...</div>
-          ) : error ? (
-            <div className="p-8 text-center text-[#ef4444]">{error}</div>
-          ) : items.length === 0 ? (
-            <div className="p-8 text-center text-[#94a3b8]">没有子目录</div>
-          ) : (
-            <div className="divide-y divide-[#e2e8f0]">
-              {items.map((item) => {
-                const nextPath = currentPath.endsWith('/')
-                  ? `${currentPath}${item.name}`
-                  : `${currentPath}/${item.name}`;
-                return (
+        {showDrives ? (
+          <div className="border border-[#e2e8f0] rounded-xl h-[336px] overflow-y-auto">
+            <div className="px-3 py-2 bg-[#f8fafc] border-b border-[#e2e8f0] text-xs font-medium text-[#64748b]">
+              选择驱动器
+            </div>
+            {loadingDrives ? (
+              <div className="h-[296px] flex items-center justify-center text-[#94a3b8]">加载中...</div>
+            ) : drives.length === 0 ? (
+              <div className="h-[296px] flex items-center justify-center text-[#94a3b8]">未找到驱动器</div>
+            ) : (
+              <div className="divide-y divide-[#e2e8f0]">
+                {drives.map((drive) => (
                   <button
-                    key={nextPath}
-                    onClick={() => fetchDirectory(nextPath)}
+                    key={drive.path}
+                    onClick={() => handleSelectDrive(drive.path)}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#f8fafc] transition-colors text-left"
                   >
-                    <Folder className="w-5 h-5 text-[#f59e0b]" />
-                    <span className="text-sm text-[#334155] flex-1">{item.name}</span>
+                    <HardDrive className="w-5 h-5 text-[#6366f1]" />
+                    <div className="flex-1">
+                      <span className="text-sm text-[#334155] font-medium">{drive.name}</span>
+                      <span className="text-xs text-[#94a3b8] ml-2">({drive.type})</span>
+                    </div>
                     <ChevronRight className="w-4 h-4 text-[#94a3b8]" />
                   </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="border border-[#e2e8f0] rounded-xl h-[336px] overflow-y-auto">
+            {loading ? (
+              <div className="h-full flex items-center justify-center text-[#94a3b8]">加载中...</div>
+            ) : error ? (
+              <div className="h-full flex items-center justify-center text-[#ef4444]">{error}</div>
+            ) : items.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-[#94a3b8]">目录为空</div>
+            ) : (
+              <div className="divide-y divide-[#e2e8f0]">
+                {items.map((item) => {
+                  const nextPath = currentPath.endsWith('/') || currentPath.endsWith('\\')
+                    ? `${currentPath}${item.name}`
+                    : `${currentPath}/${item.name}`;
+                  const isDirectory = item.type === 'directory';
+                  return (
+                    <button
+                      key={nextPath}
+                      onClick={() => isDirectory && fetchDirectory(nextPath)}
+                      disabled={!isDirectory}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 text-left",
+                        isDirectory
+                          ? "hover:bg-[#f8fafc] transition-colors cursor-pointer"
+                          : "cursor-default opacity-70"
+                      )}
+                    >
+                      {isDirectory ? (
+                        <Folder className="w-5 h-5 text-[#f59e0b]" />
+                      ) : (
+                        <File className="w-5 h-5 text-[#64748b]" />
+                      )}
+                      <span className="text-sm text-[#334155] flex-1">{item.name}</span>
+                      {isDirectory && <ChevronRight className="w-4 h-4 text-[#94a3b8]" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex gap-3 mt-6">
           <button
@@ -315,6 +443,15 @@ export const MemoryManager = () => {
 
   const handleSelectDirectory = (path: string) => {
     setSaveDir(path);
+  };
+
+  const handleUseDefaultFilePicker = () => {
+    // 关闭自定义弹窗
+    setIsBrowserOpen(false);
+    // 由于浏览器安全限制，无法直接打开系统文件夹选择对话框
+    // 提示用户手动输入或使用浏览功能
+    setSaveMessage('请直接在输入框中输入路径，或使用"浏览"按钮选择目录');
+    setTimeout(() => setSaveMessage(null), 5000);
   };
 
   return (
@@ -526,6 +663,7 @@ export const MemoryManager = () => {
         isOpen={isBrowserOpen}
         onClose={() => setIsBrowserOpen(false)}
         onSelect={handleSelectDirectory}
+        onUseDefault={handleUseDefaultFilePicker}
         initialPath={saveDir}
       />
     </div>

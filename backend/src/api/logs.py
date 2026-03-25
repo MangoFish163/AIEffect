@@ -28,7 +28,11 @@ async def get_logs(
         params = []
         if level:
             conditions.append("level = ?")
-            params.append(level.upper())
+            # 将 WARN 映射为 WARNING（Python logging 的标准级别名称）
+            level_upper = level.upper()
+            if level_upper == "WARN":
+                level_upper = "WARNING"
+            params.append(level_upper)
         if module:
             conditions.append("module LIKE ?")
             params.append(f"%{module}%")
@@ -78,7 +82,7 @@ async def get_log_stats():
         db = get_db()
         total_row = await db.fetchone("SELECT COUNT(*) as total FROM system_logs")
         error_row = await db.fetchone("SELECT COUNT(*) as count FROM system_logs WHERE level = 'ERROR'")
-        warn_row = await db.fetchone("SELECT COUNT(*) as count FROM system_logs WHERE level = 'WARN'")
+        warn_row = await db.fetchone("SELECT COUNT(*) as count FROM system_logs WHERE level = 'WARNING'")
         info_row = await db.fetchone("SELECT COUNT(*) as count FROM system_logs WHERE level = 'INFO'")
         return BaseResponse(data={
             "total": total_row['total'],
@@ -116,7 +120,11 @@ async def export_logs(
         params = []
         if level:
             conditions.append("level = ?")
-            params.append(level.upper())
+            # 将 WARN 映射为 WARNING（Python logging 的标准级别名称）
+            level_upper = level.upper()
+            if level_upper == "WARN":
+                level_upper = "WARNING"
+            params.append(level_upper)
         if start_time:
             conditions.append("timestamp >= ?")
             params.append(start_time)

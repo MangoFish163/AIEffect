@@ -709,8 +709,8 @@ export const CharacterManager: React.FC = () => {
       {tokenModal.isOpen && tokenModal.character && (
         <>
           <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setTokenModal({ isOpen: false, character: null })} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl p-6 shadow-2xl border border-[#e2e8f0] w-full max-w-lg">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setTokenModal({ isOpen: false, character: null })}>
+            <div className="bg-white rounded-2xl p-6 shadow-2xl border border-[#e2e8f0] w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-[#f0f4ff] rounded-xl flex items-center justify-center">
                   <Zap className="w-5 h-5 text-[#6366f1]" />
@@ -737,12 +737,6 @@ export const CharacterManager: React.FC = () => {
                   <span className="text-lg font-bold text-[#6366f1]">{formatNumber(tokenModal.character.tokenUsage * 3)}</span>
                 </div>
               </div>
-              <button
-                onClick={() => setTokenModal({ isOpen: false, character: null })}
-                className="w-full mt-6 py-2.5 bg-[#6366f1] text-white rounded-xl font-medium hover:bg-[#4f46e5] transition-all duration-200"
-              >
-                关闭
-              </button>
             </div>
           </div>
         </>
@@ -752,24 +746,16 @@ export const CharacterManager: React.FC = () => {
       {chatModal.isOpen && chatModal.character && (
         <>
           <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setChatModal({ isOpen: false, character: null })} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl p-6 shadow-2xl border border-[#e2e8f0] w-full max-w-lg max-h-[80vh] flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#f0fdf4] rounded-xl flex items-center justify-center">
-                    <MessageSquare className="w-5 h-5 text-[#22c55e]" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-[#0f172a]">最近聊天记录</h3>
-                    <p className="text-xs text-[#94a3b8]">{chatModal.character.name}</p>
-                  </div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setChatModal({ isOpen: false, character: null })}>
+            <div className="bg-white rounded-2xl p-6 shadow-2xl border border-[#e2e8f0] w-full max-w-lg max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-[#f0fdf4] rounded-xl flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5 text-[#22c55e]" />
                 </div>
-                <button
-                  onClick={() => setChatModal({ isOpen: false, character: null })}
-                  className="p-2 text-[#94a3b8] hover:bg-[#f8fafc] rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div>
+                  <h3 className="font-semibold text-[#0f172a]">最近聊天记录</h3>
+                  <p className="text-xs text-[#94a3b8]">{chatModal.character.name}</p>
+                </div>
               </div>
               <div className="flex-1 min-h-0">
                 <ChatPreview items={chatByCharacterId[chatModal.character.id] ?? []} heightClassName="h-[52vh]" />

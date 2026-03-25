@@ -413,11 +413,11 @@ export const LogsViewer: React.FC = () => {
                   <span className={cn(
                     'px-2 py-0.5 rounded text-xs font-bold shrink-0',
                     log.level === 'INFO' && 'bg-[#dbeafe] text-[#1e40af]',
-                    log.level === 'WARN' && 'bg-[#fef3c7] text-[#92400e]',
+                    (log.level === 'WARN' || log.level === 'WARNING') && 'bg-[#fef3c7] text-[#92400e]',
                     log.level === 'ERROR' && 'bg-[#fee2e2] text-[#991b1b]',
                     log.level === 'DEBUG' && 'bg-[#f3f4f6] text-[#6b7280]'
                   )}>
-                    {log.level}
+                    {log.level === 'WARNING' ? 'WARN' : log.level}
                   </span>
                   <span className="text-[#6366f1] shrink-0">[{log.module}]</span>
                   <span className="text-[#334155]">{log.message}</span>

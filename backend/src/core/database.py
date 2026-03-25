@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS provider_presets (
     api_key TEXT,
     model_name TEXT,
     doc_url TEXT,
+    curl_example TEXT,                   -- cURL 示例代码
     is_custom BOOLEAN DEFAULT 0,
     is_builtin BOOLEAN DEFAULT 0,
     sort_order INTEGER DEFAULT 0,
@@ -402,6 +403,25 @@ class Database:
     async def _init_tables(self):
         await self._db.executescript(INIT_SQL)
         await self._db.commit()
+        # 执行迁移：添加 curl_example 字段到 provider_presets 表
+        await self._migrate_add_curl_example()
+
+    async def _migrate_add_curl_example(self):
+        """迁移：为 provider_presets 表添加 curl_example 字段"""
+        try:
+            # 检查字段是否已存在
+            cursor = await self._db.execute("PRAGMA table_info(provider_presets)")
+            columns = await cursor.fetchall()
+            column_names = [col['name'] for col in columns]
+
+            if 'curl_example' not in column_names:
+                await self._db.execute(
+                    "ALTER TABLE provider_presets ADD COLUMN curl_example TEXT"
+                )
+                await self._db.commit()
+                logger.info("Migration applied: Added curl_example column to provider_presets")
+        except Exception as e:
+            logger.error(f"Migration failed for curl_example: {e}")
 
     async def _init_default_data(self):
         cursor = await self._db.execute("SELECT COUNT(*) as count FROM config")

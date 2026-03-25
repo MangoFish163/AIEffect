@@ -20,6 +20,8 @@ class BaseResponse(BaseModel):
     code: int = 200
     message: str = "success"
     data: Optional[Any] = None
+    server_hash: Optional[str] = None  # 配置hash，用于前后端同步校验
+    hash_mismatch: Optional[bool] = None  # hash是否不匹配
 
 
 class PaginationData(BaseModel):
@@ -107,6 +109,7 @@ class ProviderPreset(BaseModel):
     api_key: Optional[str] = None
     model_name: Optional[str] = None
     doc_url: Optional[str] = None
+    curl_example: Optional[str] = None
     is_custom: bool = False
     is_builtin: bool = False
     sort_order: int = 0
@@ -119,6 +122,7 @@ class CreateProviderPresetRequest(BaseModel):
     api_key: Optional[str] = None
     model_name: Optional[str] = None
     doc_url: Optional[str] = None
+    curl_example: Optional[str] = None
 
 
 class UpdateProviderPresetRequest(BaseModel):
@@ -128,6 +132,7 @@ class UpdateProviderPresetRequest(BaseModel):
     api_key: Optional[str] = None
     model_name: Optional[str] = None
     doc_url: Optional[str] = None
+    curl_example: Optional[str] = None
 
 
 class ProxyStartRequest(BaseModel):

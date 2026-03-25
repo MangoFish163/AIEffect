@@ -65,6 +65,38 @@ async def browse_directory(path: Optional[str] = Query(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/drives", response_model=BaseResponse)
+async def get_drives():
+    try:
+        drives = []
+        if platform.system() == "Windows":
+            import string
+            from ctypes import windll
+            bitmask = windll.kernel32.GetLogicalDrives()
+            for letter in string.ascii_uppercase:
+                if bitmask & 1:
+                    drive_path = f"{letter}:\\"
+                    try:
+                        drive_type = windll.kernel32.GetDriveTypeW(drive_path)
+                        type_names = {0: "未知", 1: "无效", 2: "可移动", 3: "固定", 4: "远程", 5: "光驱", 6: "内存盘"}
+                        drive_info = {
+                            "letter": letter,
+                            "path": drive_path,
+                            "type": type_names.get(drive_type, "未知"),
+                            "name": f"{letter}: 驱动器"
+                        }
+                        drives.append(drive_info)
+                    except:
+                        pass
+                bitmask >>= 1
+        else:
+            drives = [{"letter": "/", "path": "/", "type": "根目录", "name": "根目录"}]
+        return BaseResponse(data={"drives": drives})
+    except Exception as e:
+        logger.error(f"Error getting drives: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/tree", response_model=BaseResponse)
 async def get_directory_tree(
     root_path: str = Query(...),
