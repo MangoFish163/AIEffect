@@ -41,8 +41,8 @@ class MemoryConfig(BaseModel):
 
 
 class PortConfig(BaseModel):
-    api: int = Field(default=8500, description="FastAPI 主服务端口")
-    ollama_proxy: int = Field(default=8501, description="Ollama 代理服务端口")
+    api: int = Field(default=8501, description="FastAPI 主服务端口")
+    ollama_proxy: int = Field(default=11434, description="Ollama 代理服务端口")
     websocket: int = Field(default=8502, description="WebSocket 服务端口")
     subtitle: int = Field(default=8503, description="字幕服务端口")
     tts: int = Field(default=8504, description="TTS 服务端口")
@@ -60,8 +60,8 @@ class AppConfig(BaseModel):
 
 class Settings(BaseSettings):
     host: str = "0.0.0.0"
-    api_port: int = 8500
-    ollama_proxy_port: int = 8501
+    api_port: int = 8501
+    ollama_proxy_port: int = 11434
     ws_port: int = 8502
     subtitle_port: int = 8503
     tts_port: int = 8504

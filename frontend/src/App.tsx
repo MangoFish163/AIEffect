@@ -4,6 +4,7 @@ import { ControlPanel } from './pages/ControlPanel';
 import { SubtitleVisual } from './pages/SubtitleVisual';
 import { VoiceConfig } from './pages/VoiceConfig';
 import { MemoryManager } from './pages/MemoryManager';
+import { CharacterManager } from './pages/CharacterManager';
 import { LogsViewer } from './pages/LogsViewer';
 import { AgentsOfficeZones } from './pages/AgentsOfficeZones';
 import { useAppStore } from './store';
@@ -21,6 +22,8 @@ const App: React.FC = () => {
         return <VoiceConfig />;
       case 'memory':
         return <MemoryManager />;
+      case 'character':
+        return <CharacterManager />;
       case 'logs':
         return <LogsViewer />;
       case 'agents':

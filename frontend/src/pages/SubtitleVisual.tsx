@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Eye, EyeOff, Trash2, RotateCw, Type, Palette, Monitor, History, Plus, X, Check } from 'lucide-react';
+import { Eye, EyeOff, Trash2, RotateCw, Type, Palette, Monitor, History, Plus, X, Check, LayoutTemplate, PanelLeftClose, PanelLeftOpen, Loader2, Subtitles } from 'lucide-react';
 import { useAppStore } from '../store';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -45,6 +45,14 @@ export const SubtitleVisual: React.FC = () => {
   const [saveColorType, setSaveColorType] = useState<'font' | 'bg'>('font');
   const [saveColorName, setSaveColorName] = useState('');
   const [saveColorValue, setSaveColorValue] = useState('');
+
+  // 窗口控制状态
+  const [isSubtitleVisible, setIsSubtitleVisible] = useState(true);
+  const [isControlsHidden, setIsControlsHidden] = useState(false);
+
+  // 加载状态
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   const fontDropdownRef = useRef<HTMLDivElement>(null);
   const bgDropdownRef = useRef<HTMLDivElement>(null);
@@ -132,19 +140,22 @@ export const SubtitleVisual: React.FC = () => {
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* 共同页头 */}
-      <div>
-        <h1 className="text-3xl font-bold text-[#0f172a] mb-2">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-[#6366f1] rounded-xl flex items-center justify-center shadow-md border-2 border-[#4f46e5]">
+          <Subtitles className="w-5 h-5 text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-[#0f172a]">
           字幕视觉
         </h1>
-        <p className="text-[#64748b] text-sm">
+        {/* <p className="text-[#64748b] text-sm">
           自定义悬浮窗外行为与外观，打造沉浸式阅读体验。
-        </p>
+        </p> */}
       </div>
 
       {/* 左右两栏内容区 */}
-      <div className="flex gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 左侧：配置区 */}
-        <div className="w-96 flex-shrink-0 space-y-6">
+        <div className="space-y-6">
           <div className="card">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-[#f0f4ff] rounded-xl flex items-center justify-center">
@@ -154,20 +165,66 @@ export const SubtitleVisual: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <button className="flex items-center justify-center gap-2 py-2 px-3 border border-[#e2e8f0] rounded-xl text-sm text-[#64748b] hover:border-[#6366f1] hover:text-[#6366f1] hover:bg-[#f0f4ff] transition-colors">
-                <Eye className="w-4 h-4" />
-                显示字幕
+              {/* 字幕显示/隐藏按钮 - 默认为显示字幕选中状态 */}
+              <button
+                onClick={() => setIsSubtitleVisible(!isSubtitleVisible)}
+                className={cn(
+                  "flex items-center justify-center gap-2 py-2 px-3 border rounded-xl text-sm transition-colors",
+                  isSubtitleVisible
+                    ? "border-[#6366f1] text-[#6366f1] bg-[#f0f4ff]"
+                    : "border-[#e2e8f0] text-[#64748b] hover:border-[#6366f1] hover:text-[#6366f1] hover:bg-[#f0f4ff]"
+                )}
+              >
+                {isSubtitleVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                {isSubtitleVisible ? "显示字幕" : "隐藏字幕"}
               </button>
-              <button className="flex items-center justify-center gap-2 py-2 px-3 border border-[#e2e8f0] rounded-xl text-sm text-[#64748b] hover:border-[#6366f1] hover:text-[#6366f1] hover:bg-[#f0f4ff] transition-colors">
-                <EyeOff className="w-4 h-4" />
-                隐藏字幕
+              {/* 控件显示/隐藏按钮 - 默认为显示控件选中状态 */}
+              <button
+                onClick={() => setIsControlsHidden(!isControlsHidden)}
+                className={cn(
+                  "flex items-center justify-center gap-2 py-2 px-3 border rounded-xl text-sm transition-colors",
+                  !isControlsHidden
+                    ? "border-[#6366f1] text-[#6366f1] bg-[#f0f4ff]"
+                    : "border-[#e2e8f0] text-[#64748b] hover:border-[#6366f1] hover:text-[#6366f1] hover:bg-[#f0f4ff]"
+                )}
+              >
+                {!isControlsHidden ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+                {!isControlsHidden ? "隐藏控件" : "显示控件"}
               </button>
-              <button className="flex items-center justify-center gap-2 py-2 px-3 border border-[#e2e8f0] rounded-xl text-sm text-[#64748b] hover:border-[#6366f1] hover:text-[#6366f1] hover:bg-[#f0f4ff] transition-colors">
-                <Palette className="w-4 h-4" />
-                隐藏控件
+              {/* 压缩对话按钮 */}
+              <button
+                onClick={() => {
+                  if (isCompressing) return;
+                  setIsCompressing(true);
+                  setTimeout(() => setIsCompressing(false), 3000);
+                }}
+                disabled={isCompressing}
+                className={cn(
+                  "flex items-center justify-center gap-2 py-2 px-3 border rounded-xl text-sm transition-colors",
+                  isCompressing
+                    ? "border-[#e2e8f0] text-[#94a3b8] cursor-not-allowed"
+                    : "border-[#e2e8f0] text-[#64748b] hover:border-[#6366f1] hover:text-[#6366f1] hover:bg-[#f0f4ff]"
+                )}
+              >
+                {isCompressing ? <Loader2 className="w-4 h-4 animate-spin" /> : <LayoutTemplate className="w-4 h-4" />}
+                压缩对话
               </button>
-              <button className="flex items-center justify-center gap-2 py-2 px-3 border border-[#e2e8f0] rounded-xl text-sm text-[#64748b] hover:border-[#6366f1] hover:text-[#6366f1] hover:bg-[#f0f4ff] transition-colors">
-                <Trash2 className="w-4 h-4" />
+              {/* 清空内容按钮 */}
+              <button
+                onClick={() => {
+                  if (isClearing) return;
+                  setIsClearing(true);
+                  setTimeout(() => setIsClearing(false), 3000);
+                }}
+                disabled={isClearing}
+                className={cn(
+                  "flex items-center justify-center gap-2 py-2 px-3 border rounded-xl text-sm transition-colors",
+                  isClearing
+                    ? "border-[#e2e8f0] text-[#94a3b8] cursor-not-allowed"
+                    : "border-[#e2e8f0] text-[#64748b] hover:border-[#6366f1] hover:text-[#6366f1] hover:bg-[#f0f4ff]"
+                )}
+              >
+                {isClearing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 清空内容
               </button>
             </div>
@@ -406,7 +463,7 @@ export const SubtitleVisual: React.FC = () => {
         </div>
 
         {/* 右侧：实时预览区 */}
-        <div className="flex-1 min-w-0 bg-gradient-to-br from-[#f0f4ff] via-[#f8fafc] to-[#e8f0ff] rounded-2xl p-6">
+        <div className="bg-gradient-to-br from-[#f0f4ff] via-[#f8fafc] to-[#e8f0ff] rounded-2xl p-6 border border-[#e2e8f0] shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-[#334155]">实时预览</h2>
             <div className="flex bg-white rounded-xl p-1 border border-[#e2e8f0] shadow-sm">

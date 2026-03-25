@@ -1,11 +1,40 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Filter, Download, RefreshCw, Trash2, Pause, Play, Terminal, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react';
+import { Search, Filter, Download, RefreshCw, Trash2, Pause, Play, Terminal, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, ScrollText } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Switch, Select } from '../components';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+// API 基础地址
+const API_BASE_URL = "http://localhost:8501";
+
+// 日志项类型
+interface LogItem {
+  id: string;
+  timestamp: string;
+  level: string;
+  module: string;
+  message: string;
+}
+
+// 日志统计类型
+interface LogStats {
+  total: number;
+  error_count: number;
+  warn_count: number;
+  info_count: number;
+}
+
+// 日志响应类型
+interface LogsResponse {
+  items: LogItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export const LogsViewer: React.FC = () => {
@@ -18,21 +47,187 @@ export const LogsViewer: React.FC = () => {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
 
-  const logs = [
-    { time: '21:48:39', level: 'INFO', module: '[app.lib.a]', message: '获取日志列表: level=None, module=None, search=None, page=1, limit=50' },
-    { time: '21:48:29', level: 'INFO', module: '[app.lib.a]', message: 'New SSE subscriber for stream events' },
-    { time: '21:47:27', level: 'INFO', module: '[app.lib.s]', message: 'New SSE subscriber for stream events' },
-    { time: '21:47:20', level: 'INFO', module: '[app.lib.a]', message: 'GET /api/config' },
-    { time: '21:46:19', level: 'INFO', module: '[app.lib.a]', message: 'New SSE subscriber for stream events' },
-    { time: '21:46:19', level: 'INFO', module: '[app.lib.a]', message: 'GET /api/config' },
-    { time: '21:45:06', level: 'INFO', module: '[app.lib.a]', message: 'New SSE subscriber for stream events' },
-    { time: '21:45:06', level: 'INFO', module: '[app.lib.a]', message: 'GET /api/config' },
-    { time: '21:44:25', level: 'INFO', module: '[app.lib.s]', message: 'New SSE subscriber for stream events' },
-    { time: '21:43:45', level: 'INFO', module: '[app.lib.s]', message: 'Health check requested' },
-    { time: '21:42:24', level: 'INFO', module: '[app.lib.a]', message: 'New SSE subscriber for stream events' },
-  ];
+  // 日志数据状态
+  const [logs, setLogs] = useState<LogItem[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [stats, setStats] = useState<LogStats>({
+    total: 0,
+    error_count: 0,
+    warn_count: 0,
+    info_count: 0,
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
-  const totalPages = 6;
+  // 实时日志 EventSource
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  // 获取日志列表
+  const fetchLogs = async () => {
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        page_size: pageSize,
+      });
+      if (levelFilter !== 'all') {
+        params.append('level', levelFilter);
+      }
+      if (searchQuery) {
+        params.append('search', searchQuery);
+      }
+
+      const res = await fetch(`${API_BASE_URL}/api/logs?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data) {
+          setLogs(data.data.items);
+          setTotalPages(data.data.total_pages);
+          setTotalLogs(data.data.total);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch logs:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 获取日志统计
+  const fetchStats = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/logs/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data) {
+          setStats(data.data);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch log stats:', error);
+    }
+  };
+
+  // 清空日志
+  const clearLogs = async () => {
+    if (!confirm('确定要清空所有日志吗？')) return;
+    try {
+      setIsClearing(true);
+      const res = await fetch(`${API_BASE_URL}/api/logs`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setLogs([]);
+        setStats({ total: 0, error_count: 0, warn_count: 0, info_count: 0 });
+        setCurrentPage(1);
+      }
+    } catch (error) {
+      console.error('Failed to clear logs:', error);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  // 刷新日志
+  const refreshLogs = () => {
+    fetchLogs();
+    fetchStats();
+  };
+
+  // 导出日志
+  const exportLogs = async (format: string) => {
+    try {
+      const params = new URLSearchParams({ format });
+      if (levelFilter !== 'all') {
+        params.append('level', levelFilter);
+      }
+
+      const res = await fetch(`${API_BASE_URL}/api/logs/export?${params}`);
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const filename = res.headers.get('content-disposition')?.split('filename=')[1] || `logs.${format}`;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (error) {
+      console.error('Failed to export logs:', error);
+    }
+  };
+
+  // 连接实时日志流
+  const connectEventSource = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    const es = new EventSource(`${API_BASE_URL}/api/logs/stream`);
+    es.onmessage = (event) => {
+      try {
+        const newLog = JSON.parse(event.data);
+        setLogs((prev) => {
+          // 只保留最新的50条，避免内存溢出
+          const updated = [newLog, ...prev];
+          return updated.slice(0, parseInt(pageSize));
+        });
+        setTotalLogs((prev) => prev + 1);
+      } catch (error) {
+        console.error('Failed to parse log:', error);
+      }
+    };
+    es.onerror = (error) => {
+      console.error('EventSource error:', error);
+    };
+    eventSourceRef.current = es;
+  };
+
+  // 断开实时日志流
+  const disconnectEventSource = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+  };
+
+  // 初始加载
+  useEffect(() => {
+    fetchLogs();
+    fetchStats();
+    return () => {
+      disconnectEventSource();
+    };
+  }, []);
+
+  // 监听分页、筛选变化
+  useEffect(() => {
+    fetchLogs();
+  }, [currentPage, pageSize, levelFilter]);
+
+  // 监听实时模式变化
+  useEffect(() => {
+    if (isLive) {
+      connectEventSource();
+    } else {
+      disconnectEventSource();
+    }
+  }, [isLive]);
+
+  // 搜索防抖
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery !== undefined) {
+        setCurrentPage(1);
+        fetchLogs();
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const exportOptions = [
     { value: 'json', label: 'JSON' },
@@ -43,8 +238,7 @@ export const LogsViewer: React.FC = () => {
   const handleExport = (format: string) => {
     setExportFormat(format);
     setIsExportOpen(false);
-    // 实际导出逻辑
-    console.log(`导出为 ${format.toUpperCase()} 格式`);
+    exportLogs(format);
   };
 
   // 点击外部关闭导出下拉菜单
@@ -67,13 +261,13 @@ export const LogsViewer: React.FC = () => {
   return (
     <div className="h-full flex flex-col p-6">
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-[#0f172a] mb-2">
-            系统日志
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-[#6366f1] rounded-xl flex items-center justify-center shadow-md border-2 border-[#4f46e5]">
+            <ScrollText className="w-5 h-5 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-[#0f172a]">
+            运行日志
           </h1>
-          <p className="text-[#64748b] text-sm">
-            监控系统运行状态与调试信息。
-          </p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -88,10 +282,18 @@ export const LogsViewer: React.FC = () => {
           >
             {isLive ? <><Play className="w-4 h-4" /> 实时</> : <><Pause className="w-4 h-4" /> 暂停</>}
           </button>
-          <button className="p-2 text-[#94a3b8] hover:text-[#64748b] hover:bg-[#f8fafc] rounded-xl transition-all duration-200">
-            <RefreshCw className="w-4 h-4" />
+          <button
+            onClick={refreshLogs}
+            disabled={isLoading}
+            className="p-2 text-[#94a3b8] hover:text-[#64748b] hover:bg-[#f8fafc] rounded-xl transition-all duration-200 disabled:opacity-50"
+          >
+            <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
           </button>
-          <button className="p-2 text-[#94a3b8] hover:text-[#64748b] hover:bg-[#f8fafc] rounded-xl transition-all duration-200">
+          <button
+            onClick={clearLogs}
+            disabled={isClearing}
+            className="p-2 text-[#94a3b8] hover:text-[#64748b] hover:bg-[#f8fafc] rounded-xl transition-all duration-200 disabled:opacity-50"
+          >
             <Trash2 className="w-4 h-4" />
           </button>
 
@@ -160,9 +362,9 @@ export const LogsViewer: React.FC = () => {
         </div>
 
         <div className="ml-auto flex items-center gap-6 text-sm">
-          <span className="text-[#64748b]">总计: <span className="font-bold text-[#6366f1]">260</span></span>
-          <span className="text-[#64748b]">错误: <span className="font-bold text-[#ef4444]">0</span></span>
-          <span className="text-[#64748b]">警告: <span className="font-bold text-[#f59e0b]">1</span></span>
+          <span className="text-[#64748b]">总计: <span className="font-bold text-[#6366f1]">{stats.total}</span></span>
+          <span className="text-[#64748b]">错误: <span className="font-bold text-[#ef4444]">{stats.error_count}</span></span>
+          <span className="text-[#64748b]">警告: <span className="font-bold text-[#f59e0b]">{stats.warn_count}</span></span>
         </div>
       </div>
 
@@ -181,27 +383,48 @@ export const LogsViewer: React.FC = () => {
 
         {/* 日志列表 - 带滚动条 */}
         <div className="flex-1 overflow-y-auto font-mono text-sm min-h-0">
-          {logs.map((log, idx) => (
-            <div
-              key={idx}
-              className={cn(
-                'flex items-start gap-4 px-4 py-2 hover:bg-[#f8fafc] transition-colors duration-150',
-                idx % 2 === 0 && 'bg-[#f0f4ff]/30'
-              )}
-            >
-              <span className="text-[#94a3b8] w-20 shrink-0">{log.time}</span>
-              <span className={cn(
-                'px-2 py-0.5 rounded text-xs font-bold shrink-0',
-                log.level === 'INFO' && 'bg-[#dbeafe] text-[#1e40af]',
-                log.level === 'WARN' && 'bg-[#fef3c7] text-[#92400e]',
-                log.level === 'ERROR' && 'bg-[#fee2e2] text-[#991b1b]'
-              )}>
-                {log.level}
-              </span>
-              <span className="text-[#6366f1] shrink-0">{log.module}</span>
-              <span className="text-[#334155]">{log.message}</span>
+          {isLoading && logs.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-[#94a3b8]">
+              <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+              加载中...
             </div>
-          ))}
+          ) : logs.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-[#94a3b8]">
+              暂无日志数据
+            </div>
+          ) : (
+            logs.map((log, idx) => {
+              // 格式化时间戳
+              const timestamp = new Date(log.timestamp);
+              const timeStr = timestamp.toLocaleTimeString('zh-CN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              });
+              return (
+                <div
+                  key={log.id || idx}
+                  className={cn(
+                    'flex items-start gap-4 px-4 py-2 hover:bg-[#f8fafc] transition-colors duration-150',
+                    idx % 2 === 0 && 'bg-[#f0f4ff]/30'
+                  )}
+                >
+                  <span className="text-[#94a3b8] w-20 shrink-0">{timeStr}</span>
+                  <span className={cn(
+                    'px-2 py-0.5 rounded text-xs font-bold shrink-0',
+                    log.level === 'INFO' && 'bg-[#dbeafe] text-[#1e40af]',
+                    log.level === 'WARN' && 'bg-[#fef3c7] text-[#92400e]',
+                    log.level === 'ERROR' && 'bg-[#fee2e2] text-[#991b1b]',
+                    log.level === 'DEBUG' && 'bg-[#f3f4f6] text-[#6b7280]'
+                  )}>
+                    {log.level}
+                  </span>
+                  <span className="text-[#6366f1] shrink-0">[{log.module}]</span>
+                  <span className="text-[#334155]">{log.message}</span>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 

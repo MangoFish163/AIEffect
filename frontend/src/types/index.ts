@@ -35,6 +35,7 @@ export interface MemoryConfig {
   compress_count: number;
   check_frequency: number;
   auto_compress: boolean;
+  backup_before_compress: boolean;
 }
 
 export interface PortConfig {
@@ -59,4 +60,28 @@ export interface CharacterMemory {
   compressed_summary?: string;
 }
 
-export type PageType = 'control' | 'subtitle' | 'voice' | 'memory' | 'logs' | 'agents';
+export type PageType = 'control' | 'subtitle' | 'voice' | 'memory' | 'character' | 'logs' | 'agents';
+
+export interface Character {
+  id: string;
+  name: string;
+  saveId: string;
+  aiSoul: string;
+  aiVoice: string;
+  tokenUsage: number;
+  chatCount: number;
+  compressionEnabled: boolean;
+  interactionOps: string[];
+  avatar?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CharacterFormData {
+  name: string;
+  saveId: string;
+  aiSoul: string;
+  aiVoice: string;
+  compressionEnabled: boolean;
+  interactionOps: string[];
+}

@@ -4,8 +4,8 @@ from typing import Optional, Dict, Any
 
 class PortManager:
     DEFAULT_PORTS = {
-        'api': 8500,
-        'ollama_proxy': 8501,
+        'api': 8501,
+        'ollama_proxy': 11434,
         'websocket': 8502,
         'subtitle': 8503,
         'tts': 8504,

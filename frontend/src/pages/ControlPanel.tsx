@@ -1,13 +1,39 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Eye, EyeOff, Copy, Check, Settings, Volume2, Plus, RefreshCw, Globe, Bot, Zap, Trash2, Save, Sparkles, X, ChevronDown, ChevronUp, Shuffle } from 'lucide-react';
-import { useAppStore } from '../store';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { Select } from '../components';
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Play,
+  Pause,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
+  Settings,
+  Volume2,
+  Plus,
+  RefreshCw,
+  Globe,
+  Bot,
+  Zap,
+  Trash2,
+  Save,
+  Sparkles,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Shuffle,
+  LayoutDashboard,
+  TestTube,
+} from "lucide-react";
+import { useAppStore } from "../store";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { Select, Switch } from "../components";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+// API 基础地址
+const API_BASE_URL = "http://localhost:8501";
 
 // 预设服务商类型
 interface ProviderPreset {
@@ -21,61 +47,75 @@ interface ProviderPreset {
   isCustom?: boolean;
 }
 
-// 内置预设服务商
-const BUILTIN_PRESETS: ProviderPreset[] = [
-  { id: 'deepseek', name: 'DeepSeek', icon: '🗿', apiUrl: 'https://api.deepseek.com/v1' },
-  { id: 'doubao', name: '豆包Seed (火山引擎)', icon: '😍', apiUrl: 'https://ark.cn-beijing.volces.com/api/v3' },
-  { id: 'mimo', name: 'MiMo (XiaoMi)', icon: '🐿️', apiUrl: 'https://api.mimo.ai/v1' },
-  { id: 'openrouter', name: 'OpenRouter', icon: '🤖', apiUrl: 'https://openrouter.ai/api/v1' },
-  { id: 'openai', name: 'OpenAI', icon: '🐳', apiUrl: 'https://api.openai.com/v1' },
-  { id: 'local', name: '本地模型', icon: '🏠', apiUrl: 'http://127.0.0.1:11434/v1' },
-];
-
-// 自定义开关组件
-interface SwitchProps {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  disabled?: boolean;
+// 测试响应类型
+interface TestResponse {
+  success: boolean;
+  latency_ms?: number;
+  model_list?: string[];
+  message: string;
 }
 
-const Switch: React.FC<SwitchProps> = ({ checked, onChange, disabled }) => {
-  return (
-    <button
-      onClick={() => !disabled && onChange(!checked)}
-      disabled={disabled}
-      className={cn(
-        'relative w-12 h-6 rounded-full transition-all duration-300 ease-in-out',
-        checked ? 'bg-[#6366f1]' : 'bg-[#e2e8f0]',
-        disabled && 'opacity-50 cursor-not-allowed'
-      )}
-    >
-      <div
-        className={cn(
-          'absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300 ease-in-out',
-          checked ? 'left-7' : 'left-1'
-        )}
-      />
-    </button>
-  );
-};
+// 内置预设服务商
+const BUILTIN_PRESETS: ProviderPreset[] = [
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    icon: "🗿",
+    apiUrl: "https://api.deepseek.com/v1",
+  },
+  {
+    id: "doubao",
+    name: "豆包Seed (火山引擎)",
+    icon: "😍",
+    apiUrl: "https://ark.cn-beijing.volces.com/api/v3",
+  },
+  {
+    id: "mimo",
+    name: "MiMo (XiaoMi)",
+    icon: "🐿️",
+    apiUrl: "https://api.mimo.ai/v1",
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    icon: "🤖",
+    apiUrl: "https://openrouter.ai/api/v1",
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    icon: "🐳",
+    apiUrl: "https://api.openai.com/v1",
+  },
+  {
+    id: "local",
+    name: "本地模型",
+    icon: "🏠",
+    apiUrl: "http://127.0.0.1:11434/v1",
+  },
+];
 
 // 新建预设弹窗组件
 interface CreatePresetModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (preset: Omit<ProviderPreset, 'id' | 'isCustom'>) => void;
+  onCreate: (preset: Omit<ProviderPreset, "id" | "isCustom">) => void;
 }
 
 // 随机图标选项
-const RANDOM_ICONS = ['🐿️', '🐳', '🐸', '😎', '🤖', '🦞'];
+const RANDOM_ICONS = ["🐿️", "🐳", "🐸", "😎", "🤖", "🦞"];
 
-const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, onCreate }) => {
-  const [name, setName] = useState('');
-  const [icon, setIcon] = useState('');
-  const [apiUrl, setApiUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [modelName, setModelName] = useState('');
-  const [docUrl, setDocUrl] = useState('');
+const CreatePresetModal: React.FC<CreatePresetModalProps> = ({
+  isOpen,
+  onClose,
+  onCreate,
+}) => {
+  const [name, setName] = useState("");
+  const [icon, setIcon] = useState("");
+  const [apiUrl, setApiUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [modelName, setModelName] = useState("");
+  const [docUrl, setDocUrl] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -86,24 +126,25 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
     if (name.trim()) {
       onCreate({
         name: name.trim(),
-        icon: icon || '⭐',
+        icon: icon || "⭐",
         apiUrl: apiUrl.trim(),
         apiKey: apiKey.trim(),
         modelName: modelName.trim(),
         docUrl: docUrl.trim(),
       });
-      setName('');
-      setIcon('');
-      setApiUrl('');
-      setApiKey('');
-      setModelName('');
-      setDocUrl('');
+      setName("");
+      setIcon("");
+      setApiUrl("");
+      setApiKey("");
+      setModelName("");
+      setDocUrl("");
       onClose();
     }
   };
 
   const handleRandomIcon = () => {
-    const randomIcon = RANDOM_ICONS[Math.floor(Math.random() * RANDOM_ICONS.length)];
+    const randomIcon =
+      RANDOM_ICONS[Math.floor(Math.random() * RANDOM_ICONS.length)];
     setIcon(randomIcon);
   };
 
@@ -111,7 +152,7 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 m-4">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-[#0f172a]">新建 API 预设</h3>
+          <h3 className="text-lg font-semibold text-[#0f172a]">新建模型预设</h3>
           <button
             onClick={onClose}
             className="p-1 text-[#94a3b8] hover:text-[#64748b] transition-colors"
@@ -119,11 +160,15 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
             <X className="w-5 h-5" />
           </button>
         </div>
-        <p className="text-sm text-[#64748b] mb-6">创建一个新的 API 配置预设，方便快速切换不同的服务商</p>
+        <p className="text-sm text-[#64748b] mb-6">
+          创建一个新的模型配置预设，方便快速切换不同的服务商
+        </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex gap-3">
             <div className="flex-[2]">
-              <label className="block text-sm font-medium text-[#334155] mb-1.5">预设名称</label>
+              <label className="block text-sm font-medium text-[#334155] mb-1.5">
+                预设名称
+              </label>
               <input
                 type="text"
                 value={name}
@@ -133,7 +178,9 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
               />
             </div>
             <div className="flex-1">
-              <label className="block text-sm font-medium text-[#334155] mb-1.5">图标</label>
+              <label className="block text-sm font-medium text-[#334155] mb-1.5">
+                图标
+              </label>
               <div className="relative">
                 <input
                   type="text"
@@ -159,7 +206,9 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#334155] mb-1.5">默认 API URL (可选)</label>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">
+              默认 URL (可选)
+            </label>
             <input
               type="text"
               value={apiUrl}
@@ -171,10 +220,12 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
           {isExpanded && (
             <>
               <div>
-                <label className="block text-sm font-medium text-[#334155] mb-1.5">API Key (可选)</label>
+                <label className="block text-sm font-medium text-[#334155] mb-1.5">
+                  API Key (可选)
+                </label>
                 <div className="relative">
                   <input
-                    type={showApiKey ? 'text' : 'password'}
+                    type={showApiKey ? "text" : "password"}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="sk-..."
@@ -185,12 +236,18 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
                     onClick={() => setShowApiKey(!showApiKey)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#64748b] transition-colors duration-200"
                   >
-                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showApiKey ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-[#334155] mb-1.5">模型名称 (可选)</label>
+                <label className="block text-sm font-medium text-[#334155] mb-1.5">
+                  模型名称 (可选)
+                </label>
                 <div className="relative">
                   <input
                     type="text"
@@ -208,7 +265,9 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-[#334155] mb-1.5">官方接口文档地址 (可选)</label>
+                <label className="block text-sm font-medium text-[#334155] mb-1.5">
+                  官方接口文档地址 (可选)
+                </label>
                 <input
                   type="text"
                   value={docUrl}
@@ -225,7 +284,11 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
               onClick={() => setIsExpanded(!isExpanded)}
               className="text-[#94a3b8] hover:text-[#64748b] transition-colors duration-200 leading-none h-4 flex items-center"
             >
-              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {isExpanded ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
             </button>
           </div>
           <div className="flex gap-3 pt-4">
@@ -240,10 +303,10 @@ const CreatePresetModal: React.FC<CreatePresetModalProps> = ({ isOpen, onClose, 
               type="submit"
               disabled={!name.trim()}
               className={cn(
-                'flex-1 px-4 py-2 text-sm font-medium rounded-xl transition-colors',
+                "flex-1 px-4 py-2 text-sm font-medium rounded-xl transition-colors",
                 name.trim()
-                  ? 'bg-[#6366f1] text-white hover:bg-[#4f46e5]'
-                  : 'bg-[#e2e8f0] text-[#94a3b8] cursor-not-allowed'
+                  ? "bg-[#6366f1] text-white hover:bg-[#4f46e5]"
+                  : "bg-[#e2e8f0] text-[#94a3b8] cursor-not-allowed",
               )}
             >
               创建
@@ -263,13 +326,18 @@ interface EditPresetModalProps {
   onSave: (preset: ProviderPreset) => void;
 }
 
-const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, preset, onSave }) => {
-  const [name, setName] = useState('');
-  const [icon, setIcon] = useState('');
-  const [apiUrl, setApiUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [modelName, setModelName] = useState('');
-  const [docUrl, setDocUrl] = useState('');
+const EditPresetModal: React.FC<EditPresetModalProps> = ({
+  isOpen,
+  onClose,
+  preset,
+  onSave,
+}) => {
+  const [name, setName] = useState("");
+  const [icon, setIcon] = useState("");
+  const [apiUrl, setApiUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [modelName, setModelName] = useState("");
+  const [docUrl, setDocUrl] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
@@ -277,9 +345,9 @@ const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, pres
       setName(preset.name);
       setIcon(preset.icon);
       setApiUrl(preset.apiUrl);
-      setApiKey(preset.apiKey || '');
-      setModelName(preset.modelName || '');
-      setDocUrl(preset.docUrl || '');
+      setApiKey(preset.apiKey || "");
+      setModelName(preset.modelName || "");
+      setDocUrl(preset.docUrl || "");
     }
   }, [preset]);
 
@@ -291,7 +359,7 @@ const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, pres
       onSave({
         ...preset,
         name: name.trim(),
-        icon: icon || '⭐',
+        icon: icon || "⭐",
         apiUrl: apiUrl.trim(),
         apiKey: apiKey.trim(),
         modelName: modelName.trim(),
@@ -302,7 +370,8 @@ const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, pres
   };
 
   const handleRandomIcon = () => {
-    const randomIcon = RANDOM_ICONS[Math.floor(Math.random() * RANDOM_ICONS.length)];
+    const randomIcon =
+      RANDOM_ICONS[Math.floor(Math.random() * RANDOM_ICONS.length)];
     setIcon(randomIcon);
   };
 
@@ -310,7 +379,7 @@ const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, pres
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 m-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-[#0f172a]">编辑 API 预设</h3>
+          <h3 className="text-lg font-semibold text-[#0f172a]">编辑模型预设</h3>
           <button
             onClick={onClose}
             className="p-1 text-[#94a3b8] hover:text-[#64748b] transition-colors"
@@ -318,11 +387,15 @@ const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, pres
             <X className="w-5 h-5" />
           </button>
         </div>
-        <p className="text-sm text-[#64748b] mb-6">修改 API 配置预设的详细信息</p>
+        <p className="text-sm text-[#64748b] mb-6">
+          修改模型配置预设的详细信息
+        </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex gap-3">
             <div className="flex-[2]">
-              <label className="block text-sm font-medium text-[#334155] mb-1.5">预设名称</label>
+              <label className="block text-sm font-medium text-[#334155] mb-1.5">
+                预设名称
+              </label>
               <input
                 type="text"
                 value={name}
@@ -332,7 +405,9 @@ const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, pres
               />
             </div>
             <div className="flex-1">
-              <label className="block text-sm font-medium text-[#334155] mb-1.5">图标</label>
+              <label className="block text-sm font-medium text-[#334155] mb-1.5">
+                图标
+              </label>
               <div className="relative">
                 <input
                   type="text"
@@ -358,7 +433,9 @@ const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, pres
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#334155] mb-1.5">默认 API URL</label>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">
+              默认 URL
+            </label>
             <input
               type="text"
               value={apiUrl}
@@ -368,10 +445,12 @@ const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, pres
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#334155] mb-1.5">API Key</label>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">
+              API Key
+            </label>
             <div className="relative">
               <input
-                type={showApiKey ? 'text' : 'password'}
+                type={showApiKey ? "text" : "password"}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="sk-..."
@@ -382,12 +461,18 @@ const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, pres
                 onClick={() => setShowApiKey(!showApiKey)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#64748b] transition-colors duration-200"
               >
-                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showApiKey ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
               </button>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#334155] mb-1.5">模型名称</label>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">
+              模型名称
+            </label>
             <input
               type="text"
               value={modelName}
@@ -397,7 +482,9 @@ const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, pres
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#334155] mb-1.5">官方接口文档地址</label>
+            <label className="block text-sm font-medium text-[#334155] mb-1.5">
+              官方接口文档地址
+            </label>
             <input
               type="text"
               value={docUrl}
@@ -418,10 +505,10 @@ const EditPresetModal: React.FC<EditPresetModalProps> = ({ isOpen, onClose, pres
               type="submit"
               disabled={!name.trim()}
               className={cn(
-                'flex-1 px-4 py-2 text-sm font-medium rounded-xl transition-colors',
+                "flex-1 px-4 py-2 text-sm font-medium rounded-xl transition-colors",
                 name.trim()
-                  ? 'bg-[#6366f1] text-white hover:bg-[#4f46e5]'
-                  : 'bg-[#e2e8f0] text-[#94a3b8] cursor-not-allowed'
+                  ? "bg-[#6366f1] text-white hover:bg-[#4f46e5]"
+                  : "bg-[#e2e8f0] text-[#94a3b8] cursor-not-allowed",
               )}
             >
               保存
@@ -464,8 +551,8 @@ const PresetSelect: React.FC<PresetSelectProps> = ({
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSelect = (presetId: string) => {
@@ -479,19 +566,21 @@ const PresetSelect: React.FC<PresetSelectProps> = ({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'w-full flex items-center justify-between px-4 py-2.5 bg-white border rounded-xl text-sm transition-all duration-200',
+          "w-full flex items-center justify-between px-4 py-2.5 bg-white border rounded-xl text-sm transition-all duration-200",
           isOpen
-            ? 'border-[#6366f1] ring-2 ring-[#6366f1]/10 shadow-sm'
-            : 'border-[#e2e8f0] hover:border-[#94a3b8]'
+            ? "border-[#6366f1] ring-2 ring-[#6366f1]/10 shadow-sm"
+            : "border-[#e2e8f0] hover:border-[#94a3b8]",
         )}
       >
-        <span className={selectedPreset ? 'text-[#334155]' : 'text-[#94a3b8]'}>
-          {selectedPreset ? `${selectedPreset.icon} ${selectedPreset.name}` : '选择服务商'}
+        <span className={selectedPreset ? "text-[#334155]" : "text-[#94a3b8]"}>
+          {selectedPreset
+            ? `${selectedPreset.icon} ${selectedPreset.name}`
+            : "选择服务商"}
         </span>
         <ChevronDown
           className={cn(
-            'w-4 h-4 text-[#64748b] transition-transform duration-200',
-            isOpen && 'rotate-180'
+            "w-4 h-4 text-[#64748b] transition-transform duration-200",
+            isOpen && "rotate-180",
           )}
         />
       </button>
@@ -509,10 +598,10 @@ const PresetSelect: React.FC<PresetSelectProps> = ({
                 type="button"
                 onClick={() => handleSelect(preset.id)}
                 className={cn(
-                  'w-full px-4 py-2.5 text-left text-sm transition-colors duration-150 flex items-center gap-2',
+                  "w-full px-4 py-2.5 text-left text-sm transition-colors duration-150 flex items-center gap-2",
                   value === preset.id
-                    ? 'bg-[#f0f4ff] text-[#6366f1]'
-                    : 'text-[#334155] hover:bg-[#f8fafc]'
+                    ? "bg-[#f0f4ff] text-[#6366f1]"
+                    : "text-[#334155] hover:bg-[#f8fafc]",
                 )}
               >
                 <span>{preset.icon}</span>
@@ -533,10 +622,10 @@ const PresetSelect: React.FC<PresetSelectProps> = ({
                     type="button"
                     onClick={() => handleSelect(preset.id)}
                     className={cn(
-                      'w-full px-4 py-2.5 text-left text-sm transition-colors duration-150 flex items-center gap-2 group',
+                      "w-full px-4 py-2.5 text-left text-sm transition-colors duration-150 flex items-center gap-2 group",
                       value === preset.id
-                        ? 'bg-[#f0f4ff] text-[#6366f1]'
-                        : 'text-[#334155] hover:bg-[#f8fafc]'
+                        ? "bg-[#f0f4ff] text-[#6366f1]"
+                        : "text-[#334155] hover:bg-[#f8fafc]",
                     )}
                   >
                     <span>{preset.icon}</span>
@@ -580,17 +669,152 @@ export const ControlPanel: React.FC = () => {
   const [lanEnabled, setLanEnabled] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [autoPlayEnabled, setAutoPlayEnabled] = useState(true);
-  const [activePromptTab, setActivePromptTab] = useState<'system' | 'assistant'>('system');
-  const [systemPrompt, setSystemPrompt] = useState('');
-  const [assistantPrompt, setAssistantPrompt] = useState('');
+  const [activePromptTab, setActivePromptTab] = useState<
+    "system" | "assistant"
+  >("system");
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [assistantPrompt, setAssistantPrompt] = useState("");
 
   // 自定义预设状态
   const [customPresets, setCustomPresets] = useState<ProviderPreset[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  // 测试按钮加载状态
+  const [isTestingProvider, setIsTestingProvider] = useState(false);
+  const [isTestingService, setIsTestingService] = useState(false);
+  const [testResult, setTestResult] = useState<TestResponse | null>(null);
+  const [showTestResult, setShowTestResult] = useState(false);
+
+  // 加载状态
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // 获取配置和预设列表
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        // 获取配置
+        const configRes = await fetch(`${API_BASE_URL}/api/config`);
+        if (configRes.ok) {
+          const configData = await configRes.json();
+          if (configData.data) {
+            setConfig({
+              api: {
+                provider: configData.data.api?.provider || 'deepseek',
+                api_url: configData.data.api?.api_url || '',
+                api_key: configData.data.api?.api_key || '',
+                model_name: configData.data.api?.model_name || '',
+              },
+              tts: configData.data.tts || config.tts,
+              subtitle: configData.data.subtitle || config.subtitle,
+              memory: configData.data.memory || config.memory,
+              ports: configData.data.ports || config.ports,
+              lan_enabled: configData.data.lan_enabled || false,
+            });
+            setLanEnabled(configData.data.lan_enabled || false);
+            setTtsEnabled(configData.data.tts?.enabled ?? true);
+            setAutoPlayEnabled(configData.data.tts?.auto_play ?? true);
+          }
+        }
+
+        // 获取服务商预设列表
+        const providersRes = await fetch(`${API_BASE_URL}/api/providers`);
+        if (providersRes.ok) {
+          const providersData = await providersRes.json();
+          if (providersData.data?.custom) {
+            const customList = providersData.data.custom.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              icon: p.icon,
+              apiUrl: p.api_url,
+              apiKey: p.api_key,
+              modelName: p.model_name,
+              docUrl: p.doc_url,
+              isCustom: p.is_custom,
+            }));
+            setCustomPresets(customList);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // 保存配置到后端
+  const saveConfig = async () => {
+    try {
+      setIsSaving(true);
+      const res = await fetch(`${API_BASE_URL}/api/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api: config.api,
+          tts: config.tts,
+          lan_enabled: lanEnabled,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data) {
+          setConfig(data.data);
+        }
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Failed to save config:", error);
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 处理测试按钮点击
+  const handleTestProvider = async () => {
+    setIsTestingProvider(true);
+    setShowTestResult(false);
+    try {
+      const params = new URLSearchParams({
+        api_url: config.api.api_url,
+        api_key: config.api.api_key,
+        model_name: config.api.model_name,
+      });
+      const res = await fetch(`${API_BASE_URL}/api/providers/test?${params}`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTestResult(data.data);
+        setShowTestResult(true);
+      }
+    } catch (error) {
+      console.error("Test failed:", error);
+      setTestResult({
+        success: false,
+        message: "测试请求失败，请检查网络连接",
+      });
+      setShowTestResult(true);
+    } finally {
+      setIsTestingProvider(false);
+    }
+  };
+
+  const handleTestService = () => {
+    setIsTestingService(true);
+    setTimeout(() => {
+      setIsTestingService(false);
+    }, 3000);
+  };
+
   const handleCopy = async () => {
-    await navigator.clipboard.writeText('http://localhost:8501');
+    await navigator.clipboard.writeText("http://localhost:11434");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -611,34 +835,117 @@ export const ControlPanel: React.FC = () => {
   };
 
   // 创建新预设
-  const handleCreatePreset = (newPreset: Omit<ProviderPreset, 'id' | 'isCustom'>) => {
-    const preset: ProviderPreset = {
-      ...newPreset,
-      id: `custom_${Date.now()}`,
-      isCustom: true,
-    };
-    setCustomPresets([...customPresets, preset]);
-    // 自动切换到新创建的预设
-    setConfig({
-      api: {
-        ...config.api,
-        provider: preset.id,
-        api_url: preset.apiUrl || config.api.api_url,
-      },
-    });
+  const handleCreatePreset = async (
+    newPreset: Omit<ProviderPreset, "id" | "isCustom">,
+  ) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/providers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newPreset.name,
+          icon: newPreset.icon,
+          api_url: newPreset.apiUrl,
+          api_key: newPreset.apiKey,
+          model_name: newPreset.modelName,
+          doc_url: newPreset.docUrl,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data) {
+          const preset: ProviderPreset = {
+            id: data.data.id,
+            name: data.data.name,
+            icon: data.data.icon,
+            apiUrl: data.data.api_url,
+            apiKey: data.data.api_key,
+            modelName: data.data.model_name,
+            docUrl: data.data.doc_url,
+            isCustom: data.data.is_custom,
+          };
+          setCustomPresets([...customPresets, preset]);
+          // 自动切换到新创建的预设
+          setConfig({
+            api: {
+              ...config.api,
+              provider: preset.id,
+              api_url: preset.apiUrl || config.api.api_url,
+            },
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to create preset:", error);
+    }
   };
 
   // 编辑预设
-  const handleEditPreset = (updatedPreset: ProviderPreset) => {
-    setCustomPresets(customPresets.map((p) => (p.id === updatedPreset.id ? updatedPreset : p)));
-    // 如果编辑的是当前选中的预设，更新配置
-    if (config.api.provider === updatedPreset.id) {
-      setConfig({
-        api: {
-          ...config.api,
-          api_url: updatedPreset.apiUrl || config.api.api_url,
-        },
+  const handleEditPreset = async (updatedPreset: ProviderPreset) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/providers/${updatedPreset.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: updatedPreset.name,
+          icon: updatedPreset.icon,
+          api_url: updatedPreset.apiUrl,
+          api_key: updatedPreset.apiKey,
+          model_name: updatedPreset.modelName,
+          doc_url: updatedPreset.docUrl,
+        }),
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data) {
+          setCustomPresets(
+            customPresets.map((p) => (p.id === updatedPreset.id ? {
+              ...updatedPreset,
+              name: data.data.name,
+              icon: data.data.icon,
+              apiUrl: data.data.api_url,
+              apiKey: data.data.api_key,
+              modelName: data.data.model_name,
+              docUrl: data.data.doc_url,
+            } : p)),
+          );
+          // 如果编辑的是当前选中的预设，更新配置
+          if (config.api.provider === updatedPreset.id) {
+            setConfig({
+              api: {
+                ...config.api,
+                api_url: data.data.api_url || config.api.api_url,
+              },
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to update preset:", error);
+    }
+  };
+
+  // 删除自定义预设
+  const handleDeleteCustomPreset = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/providers/${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setCustomPresets(customPresets.filter((p) => p.id !== id));
+        // 如果删除的是当前选中的预设，切换到默认预设
+        if (config.api.provider === id) {
+          setConfig({
+            api: {
+              ...config.api,
+              provider: BUILTIN_PRESETS[0].id,
+              api_url: BUILTIN_PRESETS[0].apiUrl,
+            },
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to delete preset:", error);
     }
   };
 
@@ -648,46 +955,36 @@ export const ControlPanel: React.FC = () => {
     return allPresets.find((p) => p.id === config.api.provider) || null;
   };
 
-  // 删除自定义预设
-  const handleDeleteCustomPreset = (id: string) => {
-    setCustomPresets(customPresets.filter((p) => p.id !== id));
-    // 如果删除的是当前选中的预设，切换到默认预设
-    if (config.api.provider === id) {
-      setConfig({
-        api: {
-          ...config.api,
-          provider: BUILTIN_PRESETS[0].id,
-          api_url: BUILTIN_PRESETS[0].apiUrl,
-        },
-      });
-    }
-  };
-
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* 顶部标题和状态标签 */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-[#0f172a]">
-            控制面板
-          </h1>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-[#6366f1] rounded-xl flex items-center justify-center shadow-md border-2 border-[#4f46e5]">
+            <LayoutDashboard className="w-5 h-5 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-[#0f172a]">控制面板</h1>
         </div>
         <div className="flex items-center gap-3">
-          <span className="px-3 py-1.5 bg-[#f0fdf4] text-[#166534] rounded-full text-sm font-medium border border-[#bbf7d0] flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 bg-[#22c55e] rounded-full" />
-            API 已配置
+          <span className="px-3 py-1.5 bg-[#f8fafc] text-[#94a3b8] rounded-full text-sm font-medium border border-[#e2e8f0] flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 bg-[#94a3b8] rounded-full" />
+            模型未配置
           </span>
-          <span className={cn(
-            'px-3 py-1.5 rounded-full text-sm font-medium border flex items-center gap-1.5 transition-colors duration-200',
-            ttsEnabled
-              ? 'bg-[#f0f4ff] text-[#6366f1] border-[#e2e8f0]'
-              : 'bg-[#f8fafc] text-[#94a3b8] border-[#e2e8f0]'
-          )}>
-            <span className={cn(
-              'w-1.5 h-1.5 rounded-full',
-              ttsEnabled ? 'bg-[#6366f1]' : 'bg-[#94a3b8]'
-            )} />
-            {ttsEnabled ? 'TTS 待机' : 'TTS 未启用'}
+          <span
+            className={cn(
+              "px-3 py-1.5 rounded-full text-sm font-medium border flex items-center gap-1.5 transition-colors duration-200",
+              ttsEnabled
+                ? "bg-[#f0f4ff] text-[#6366f1] border-[#e2e8f0]"
+                : "bg-[#f8fafc] text-[#94a3b8] border-[#e2e8f0]",
+            )}
+          >
+            <span
+              className={cn(
+                "w-1.5 h-1.5 rounded-full",
+                ttsEnabled ? "bg-[#6366f1]" : "bg-[#94a3b8]",
+              )}
+            />
+            {ttsEnabled ? "TTS 待机" : "TTS 未启用"}
           </span>
           <span className="px-3 py-1.5 bg-[#fef3c7] text-[#92400e] rounded-full text-sm font-medium border border-[#fde68a]">
             角色: 未设置
@@ -704,34 +1001,57 @@ export const ControlPanel: React.FC = () => {
             </div>
             <div>
               <h3 className="font-semibold text-[#0f172a]">Ollama 代理服务</h3>
-              <p className="text-sm text-[#64748b]">在 8501 端口提供 Ollama 兼容 API</p>
+              <p className="text-sm text-[#64748b]">
+                在 11434 端口提供 Ollama 兼容 API
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className={cn(
-              'px-3 py-1 rounded-full text-sm font-medium border transition-colors duration-200',
-              isServiceRunning
-                ? 'bg-[#f0fdf4] text-[#166534] border-[#bbf7d0]'
-                : 'bg-[#f8fafc] text-[#64748b] border-[#e2e8f0]'
-            )}>
-              <span className={cn(
-                'inline-block w-1.5 h-1.5 rounded-full mr-1.5',
-                isServiceRunning ? 'bg-[#22c55e] animate-pulse' : 'bg-[#94a3b8]'
-              )} />
-              {isServiceRunning ? '已启动' : '已停止'}
+            <span
+              className={cn(
+                "px-3 py-1 rounded-full text-sm font-medium border transition-colors duration-200",
+                isServiceRunning
+                  ? "bg-[#f0fdf4] text-[#166534] border-[#bbf7d0]"
+                  : "bg-[#f8fafc] text-[#64748b] border-[#e2e8f0]",
+              )}
+            >
+              <span
+                className={cn(
+                  "inline-block w-1.5 h-1.5 rounded-full mr-1.5",
+                  isServiceRunning
+                    ? "bg-[#22c55e] animate-pulse"
+                    : "bg-[#94a3b8]",
+                )}
+              />
+              {isServiceRunning ? "已启动" : "已停止"}
             </span>
             <button
               onClick={() => setIsServiceRunning(!isServiceRunning)}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200',
+                "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200",
                 isServiceRunning
-                  ? 'bg-[#f59e0b] hover:bg-[#d97706] text-white'
-                  : 'bg-[#6366f1] hover:bg-[#4f46e5] text-white shadow-md hover:shadow-lg'
+                  ? "bg-[#f59e0b] hover:bg-[#d97706] text-white"
+                  : "bg-[#6366f1] hover:bg-[#4f46e5] text-white shadow-md hover:shadow-lg",
               )}
             >
-              {isServiceRunning ? <><Pause className="w-4 h-4" /> 停止服务</> : <><Play className="w-4 h-4" /> 启动服务</>}
+              {isServiceRunning ? (
+                <>
+                  <Pause className="w-4 h-4" /> 停止服务
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" /> 启动服务
+                </>
+              )}
             </button>
-            <button className="px-3 py-2 text-sm text-[#64748b] border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] hover:border-[#94a3b8] transition-all duration-200">
+            <button
+              onClick={handleTestService}
+              disabled={isTestingService}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-[#64748b] border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] hover:border-[#94a3b8] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <TestTube
+                className={cn("w-4 h-4", isTestingService && "animate-spin")}
+              />
               测试
             </button>
           </div>
@@ -740,38 +1060,48 @@ export const ControlPanel: React.FC = () => {
         <div className="flex items-center gap-3 mt-4">
           <span className="text-sm text-[#64748b]">外部应用访问地址:</span>
           <div className="flex-1 bg-[#f8fafc] rounded-lg px-4 py-2 text-[#334155] font-mono text-sm border border-[#e2e8f0]">
-            http://localhost:8501
+            http://localhost:11434
           </div>
           <button
             onClick={handleCopy}
             className="p-2 text-[#94a3b8] hover:text-[#6366f1] transition-colors duration-200"
           >
-            {copied ? <Check className="w-5 h-5 text-[#22c55e]" /> : <Copy className="w-5 h-5" />}
+            {copied ? (
+              <Check className="w-5 h-5 text-[#22c55e]" />
+            ) : (
+              <Copy className="w-5 h-5" />
+            )}
           </button>
         </div>
       </div>
 
       {/* API 配置和语音合成 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* API 配置卡片 */}
+        {/* 模型配置卡片 */}
         <div className="card hover:shadow-md transition-shadow duration-300">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-[#f0f4ff] rounded-xl flex items-center justify-center">
               <Settings className="w-5 h-5 text-[#6366f1]" />
             </div>
             <div>
-              <h3 className="font-semibold text-[#0f172a]">API 配置</h3>
-              <p className="text-sm text-[#64748b]">设置 LLM API 接口地址和密钥</p>
+              <h3 className="font-semibold text-[#0f172a]">模型配置</h3>
+              <p className="text-sm text-[#64748b]">
+                配置 LLM 模型服务商、接口地址和密钥
+              </p>
             </div>
           </div>
 
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-[#334155]">服务商预设</label>
+                <label className="block text-sm font-medium text-[#334155]">
+                  服务商预设
+                </label>
                 {customPresets.some((p) => p.id === config.api.provider) && (
                   <button
-                    onClick={() => handleDeleteCustomPreset(config.api.provider)}
+                    onClick={() =>
+                      handleDeleteCustomPreset(config.api.provider)
+                    }
                     className="flex items-center gap-1 text-xs text-[#ef4444] hover:text-[#dc2626] transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -779,57 +1109,95 @@ export const ControlPanel: React.FC = () => {
                   </button>
                 )}
               </div>
-              <PresetSelect
-                value={config.api.provider}
-                onChange={handleProviderChange}
-                builtinPresets={BUILTIN_PRESETS}
-                customPresets={customPresets}
-                onCreateNew={() => setIsCreateModalOpen(true)}
-                onDeleteCustom={handleDeleteCustomPreset}
-              />
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <PresetSelect
+                    value={config.api.provider}
+                    onChange={handleProviderChange}
+                    builtinPresets={BUILTIN_PRESETS}
+                    customPresets={customPresets}
+                    onCreateNew={() => setIsCreateModalOpen(true)}
+                    onDeleteCustom={handleDeleteCustomPreset}
+                  />
+                </div>
+                <button
+                  onClick={handleTestProvider}
+                  disabled={isTestingProvider}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-[#64748b] border border-[#e2e8f0] rounded-xl hover:bg-[#f8fafc] hover:border-[#94a3b8] transition-all duration-200 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                  title="测试连接"
+                >
+                  <TestTube
+                    className={cn(
+                      "w-4 h-4",
+                      isTestingProvider && "animate-spin",
+                    )}
+                  />
+                  测试
+                </button>
+              </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#334155] mb-1.5">API URL</label>
+              <label className="block text-sm font-medium text-[#334155] mb-1.5">
+                模型URL
+              </label>
               <input
                 type="text"
                 className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
                 placeholder="https://api.example.com/v1"
                 value={config.api.api_url}
-                onChange={(e) => setConfig({ api: { ...config.api, api_url: e.target.value } })}
+                onChange={(e) =>
+                  setConfig({ api: { ...config.api, api_url: e.target.value } })
+                }
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#334155] mb-1.5">API Key</label>
+              <label className="block text-sm font-medium text-[#334155] mb-1.5">
+                API Key
+              </label>
               <div className="relative">
                 <input
-                  type={showApiKey ? 'text' : 'password'}
+                  type={showApiKey ? "text" : "password"}
                   autoComplete="new-password"
                   className="input pr-10 focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
                   placeholder="sk-..."
                   value={config.api.api_key}
-                  onChange={(e) => setConfig({ api: { ...config.api, api_key: e.target.value } })}
+                  onChange={(e) =>
+                    setConfig({
+                      api: { ...config.api, api_key: e.target.value },
+                    })
+                  }
                 />
                 <button
                   type="button"
                   onClick={() => setShowApiKey(!showApiKey)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#64748b] transition-colors duration-200"
                 >
-                  {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showApiKey ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-[#334155] mb-1.5">模型名称</label>
+                <label className="block text-sm font-medium text-[#334155] mb-1.5">
+                  模型名称
+                </label>
                 <input
                   type="text"
                   className="input focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
                   placeholder="gpt-4"
                   value={config.api.model_name}
-                  onChange={(e) => setConfig({ api: { ...config.api, model_name: e.target.value } })}
+                  onChange={(e) =>
+                    setConfig({
+                      api: { ...config.api, model_name: e.target.value },
+                    })
+                  }
                 />
               </div>
               <div className="flex gap-2 mt-7">
@@ -841,6 +1209,51 @@ export const ControlPanel: React.FC = () => {
                   <Settings className="w-4 h-4 text-[#64748b] hover:text-[#6366f1]" />
                 </button>
               </div>
+            </div>
+
+            {/* 测试结果展示 */}
+            {showTestResult && testResult && (
+              <div className={cn(
+                "p-3 rounded-lg text-sm",
+                testResult.success
+                  ? "bg-[#f0fdf4] text-[#166534] border border-[#bbf7d0]"
+                  : "bg-[#fef2f2] text-[#dc2626] border border-[#fecaca]"
+              )}>
+                <div className="flex items-center gap-2">
+                  {testResult.success ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <X className="w-4 h-4" />
+                  )}
+                  <span>{testResult.message}</span>
+                </div>
+                {testResult.latency_ms && (
+                  <div className="mt-1 text-xs opacity-80">
+                    延迟: {testResult.latency_ms}ms
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 保存配置按钮 */}
+            <div className="pt-2">
+              <button
+                onClick={saveConfig}
+                disabled={isSaving}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#6366f1] text-white rounded-xl hover:bg-[#4f46e5] transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSaving ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    保存配置
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -861,7 +1274,9 @@ export const ControlPanel: React.FC = () => {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-[#334155] mb-2">选择引擎</label>
+              <label className="block text-sm font-medium text-[#334155] mb-2">
+                选择引擎
+              </label>
               <div className="flex gap-2">
                 <button className="flex-1 py-2 px-4 border border-[#e2e8f0] rounded-lg text-sm text-[#64748b] hover:border-[#6366f1] hover:text-[#6366f1] hover:bg-[#f0f4ff] flex items-center justify-center gap-2 transition-all duration-200">
                   <Settings className="w-4 h-4" />
@@ -877,14 +1292,14 @@ export const ControlPanel: React.FC = () => {
             <div className="space-y-3">
               <p className="text-sm font-medium text-[#334155]">角色配置</p>
               <div className="space-y-2">
-                {['全局默认', '男性默认', '女性默认'].map((role, idx) => (
+                {["全局默认", "男性默认", "女性默认"].map((role, idx) => (
                   <div key={idx} className="flex items-center gap-3">
                     <span className="w-20 text-sm text-[#64748b]">{role}</span>
                     <Select
                       className="flex-1"
                       value=""
                       onChange={() => {}}
-                      options={[{ value: '', label: '选择角色' }]}
+                      options={[{ value: "", label: "选择角色" }]}
                       placeholder="选择角色"
                     />
                   </div>
@@ -895,7 +1310,9 @@ export const ControlPanel: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-[#334155]">音量</span>
-                <span className="text-sm text-[#6366f1] font-medium">{Math.round(config.tts.volume * 100)}%</span>
+                <span className="text-sm text-[#6366f1] font-medium">
+                  {Math.round(config.tts.volume * 100)}%
+                </span>
               </div>
               <input
                 type="range"
@@ -903,7 +1320,11 @@ export const ControlPanel: React.FC = () => {
                 max="1"
                 step="0.01"
                 value={config.tts.volume}
-                onChange={(e) => setConfig({ tts: { ...config.tts, volume: parseFloat(e.target.value) } })}
+                onChange={(e) =>
+                  setConfig({
+                    tts: { ...config.tts, volume: parseFloat(e.target.value) },
+                  })
+                }
                 className="w-full accent-[#6366f1] cursor-pointer"
               />
             </div>
@@ -924,7 +1345,13 @@ export const ControlPanel: React.FC = () => {
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-[#0f172a]">局域网开放</h3>
-            <p className="text-sm text-[#64748b]">开启后服务绑定 0.0.0.0，允许局域网内其他设备（如手机、平板）通过本机 IP 访问。<span className="text-[#f59e0b]">修改后需重启代理服务器生效。</span></p>
+            <p className="text-sm text-[#64748b]">
+              开启后服务绑定
+              0.0.0.0，允许局域网内其他设备（如手机、平板）通过本机 IP 访问。
+              <span className="text-[#f59e0b]">
+                修改后需重启代理服务器生效。
+              </span>
+            </p>
           </div>
           <Switch checked={lanEnabled} onChange={setLanEnabled} />
         </div>
@@ -937,10 +1364,20 @@ export const ControlPanel: React.FC = () => {
             <Sparkles className="w-5 h-5 text-[#6366f1]" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-[#0f172a]">Antigravity 自动化桥接 <span className="text-xs text-[#f59e0b] font-normal">(实验性功能)</span></h3>
-            <p className="text-sm text-[#64748b]">开启后将不再走 API，改为 UI 自动化桥接</p>
+            <h3 className="font-semibold text-[#0f172a]">
+              Antigravity 自动化桥接{" "}
+              <span className="text-xs text-[#f59e0b] font-normal">
+                (实验性功能)
+              </span>
+            </h3>
+            <p className="text-sm text-[#64748b]">
+              开启后将不再走 API，改为 UI 自动化桥接
+            </p>
           </div>
-          <Switch checked={antigravityEnabled} onChange={setAntigravityEnabled} />
+          <Switch
+            checked={antigravityEnabled}
+            onChange={setAntigravityEnabled}
+          />
         </div>
       </div>
 
@@ -952,7 +1389,9 @@ export const ControlPanel: React.FC = () => {
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-[#0f172a]">辅助模型</h3>
-            <p className="text-sm text-[#64748b]">简单场景自动切换到低成本模型</p>
+            <p className="text-sm text-[#64748b]">
+              简单场景自动切换到低成本模型
+            </p>
           </div>
           <Switch checked={auxModelEnabled} onChange={setAuxModelEnabled} />
         </div>
@@ -963,24 +1402,24 @@ export const ControlPanel: React.FC = () => {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setActivePromptTab('system')}
+              onClick={() => setActivePromptTab("system")}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
-                activePromptTab === 'system'
-                  ? 'bg-[#6366f1] text-white shadow-md'
-                  : 'text-[#64748b] hover:bg-[#f8fafc]'
+                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                activePromptTab === "system"
+                  ? "bg-[#6366f1] text-white shadow-md"
+                  : "text-[#64748b] hover:bg-[#f8fafc]",
               )}
             >
               <Bot className="w-4 h-4" />
               系统提示词
             </button>
             <button
-              onClick={() => setActivePromptTab('assistant')}
+              onClick={() => setActivePromptTab("assistant")}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
-                activePromptTab === 'assistant'
-                  ? 'bg-[#6366f1] text-white shadow-md'
-                  : 'text-[#64748b] hover:bg-[#f8fafc]'
+                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                activePromptTab === "assistant"
+                  ? "bg-[#6366f1] text-white shadow-md"
+                  : "text-[#64748b] hover:bg-[#f8fafc]",
               )}
             >
               <Sparkles className="w-4 h-4" />
@@ -1000,7 +1439,7 @@ export const ControlPanel: React.FC = () => {
           </div>
         </div>
 
-        {activePromptTab === 'system' ? (
+        {activePromptTab === "system" ? (
           <div className="relative">
             <textarea
               className="input min-h-[200px] resize-none focus:ring-2 focus:ring-[#6366f1]/10 focus:border-[#6366f1] transition-all duration-200"
@@ -1038,7 +1477,7 @@ export const ControlPanel: React.FC = () => {
 // AI 助手聊天组件
 interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   timestamp: Date;
 }
@@ -1046,18 +1485,19 @@ interface Message {
 const AIAssistantChat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
-      role: 'assistant',
-      content: '你好呀～我是星野，是 AI Voice Bridge 的虚拟助手。我可以将文字变成有感情的声音，还能理解你说的话哦！有什么想聊的吗？',
+      id: "1",
+      role: "assistant",
+      content:
+        "你好呀～我是星野，是 AI Voice Bridge 的虚拟助手。我可以将文字变成有感情的声音，还能理解你说的话哦！有什么想聊的吗？",
       timestamp: new Date(),
     },
   ]);
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   React.useEffect(() => {
@@ -1069,20 +1509,20 @@ const AIAssistantChat: React.FC = () => {
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      role: 'user',
+      role: "user",
       content: inputValue,
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInputValue('');
+    setInputValue("");
 
     // 模拟 AI 回复
     setTimeout(() => {
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '收到你的消息啦！我正在思考如何回答...',
+        role: "assistant",
+        content: "收到你的消息啦！我正在思考如何回答...",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, assistantMessage]);
@@ -1090,7 +1530,7 @@ const AIAssistantChat: React.FC = () => {
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -1108,8 +1548,8 @@ const AIAssistantChat: React.FC = () => {
     setTimeout(() => {
       const assistantMessage: Message = {
         id: Date.now().toString(),
-        role: 'assistant',
-        content: '让我重新思考一下这个问题...',
+        role: "assistant",
+        content: "让我重新思考一下这个问题...",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, assistantMessage]);
@@ -1118,13 +1558,13 @@ const AIAssistantChat: React.FC = () => {
 
   const handlePlayVoice = (message: Message) => {
     // 播放语音功能占位
-    console.log('播放语音:', message.content);
+    console.log("播放语音:", message.content);
   };
 
   // 判断是否为最后一条 AI 消息
   const getLastAssistantMessageId = () => {
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === 'assistant') {
+      if (messages[i].role === "assistant") {
         return messages[i].id;
       }
     }
@@ -1138,25 +1578,26 @@ const AIAssistantChat: React.FC = () => {
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
         {messages.map((message) => {
-          const isLastAssistant = message.id === lastAssistantId && message.role === 'assistant';
+          const isLastAssistant =
+            message.id === lastAssistantId && message.role === "assistant";
           return (
             <div
               key={message.id}
               className={cn(
-                'flex gap-3',
-                message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
+                "flex gap-3",
+                message.role === "user" ? "flex-row-reverse" : "flex-row",
               )}
             >
               {/* 头像 */}
               <div
                 className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
-                  message.role === 'user'
-                    ? 'bg-[#6366f1]'
-                    : 'bg-gradient-to-br from-[#fbbf24] to-[#f59e0b]'
+                  "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                  message.role === "user"
+                    ? "bg-[#6366f1]"
+                    : "bg-gradient-to-br from-[#fbbf24] to-[#f59e0b]",
                 )}
               >
-                {message.role === 'user' ? (
+                {message.role === "user" ? (
                   <span className="text-white text-sm font-medium">我</span>
                 ) : (
                   <Sparkles className="w-4 h-4 text-white" />
@@ -1167,10 +1608,10 @@ const AIAssistantChat: React.FC = () => {
               <div className="flex flex-col gap-1.5 max-w-[70%]">
                 <div
                   className={cn(
-                    'px-4 py-2.5 rounded-2xl text-sm',
-                    message.role === 'user'
-                      ? 'bg-[#6366f1] text-white rounded-tr-sm'
-                      : 'bg-[#f8fafc] text-[#334155] border border-[#e2e8f0] rounded-tl-sm'
+                    "px-4 py-2.5 rounded-2xl text-sm",
+                    message.role === "user"
+                      ? "bg-[#6366f1] text-white rounded-tr-sm"
+                      : "bg-[#f8fafc] text-[#334155] border border-[#e2e8f0] rounded-tl-sm",
                   )}
                 >
                   {message.content}
@@ -1236,10 +1677,10 @@ const AIAssistantChat: React.FC = () => {
             onClick={handleSend}
             disabled={!inputValue.trim()}
             className={cn(
-              'p-2 rounded-lg transition-all duration-200',
+              "p-2 rounded-lg transition-all duration-200",
               inputValue.trim()
-                ? 'bg-[#6366f1] text-white hover:bg-[#4f46e5]'
-                : 'bg-[#e2e8f0] text-[#94a3b8] cursor-not-allowed'
+                ? "bg-[#6366f1] text-white hover:bg-[#4f46e5]"
+                : "bg-[#e2e8f0] text-[#94a3b8] cursor-not-allowed",
             )}
           >
             <Play className="w-4 h-4" />
