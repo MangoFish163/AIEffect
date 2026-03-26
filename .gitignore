@@ -424,3 +424,15 @@ script/*.log
 
 # Nested git repository
 AIEffect/
+
+# Data directories
+/data/
+/services/api_gateway/data/
+/services/log/data/
+
+# Database files
+*.db
+*.db-journal
+
+# Log buffer files
+**/log_buffer/*.jsonl

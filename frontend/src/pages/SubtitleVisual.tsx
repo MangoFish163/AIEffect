@@ -15,6 +15,8 @@ interface ColorPreset {
   isCustom?: boolean;
 }
 
+const API_BASE_URL = 'http://localhost:8501';
+
 const defaultColorPresets: ColorPreset[] = [
   { id: 'white', name: '白色', color: '#ffffff' },
   { id: 'black', name: '黑色', color: '#000000' },
@@ -36,8 +38,8 @@ export const SubtitleVisual: React.FC = () => {
     { id: 'custom', name: '自定义颜色', color: '#0a0a0f' },
   ]);
 
-  const [selectedFontColor, setSelectedFontColor] = useState('#ffffff');
-  const [selectedBgColor, setSelectedBgColor] = useState('#6366f1');
+  const [selectedFontColor, setSelectedFontColor] = useState(config.subtitle.font_color || '#ffffff');
+  const [selectedBgColor, setSelectedBgColor] = useState(config.subtitle.background_color || '#6366f1');
   const [fontColorDropdownOpen, setFontColorDropdownOpen] = useState(false);
   const [bgColorDropdownOpen, setBgColorDropdownOpen] = useState(false);
 
@@ -53,9 +55,156 @@ export const SubtitleVisual: React.FC = () => {
   // 加载状态
   const [isCompressing, setIsCompressing] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [isLoadingPresets, setIsLoadingPresets] = useState(false);
 
   const fontDropdownRef = useRef<HTMLDivElement>(null);
   const bgDropdownRef = useRef<HTMLDivElement>(null);
+
+  // 从后端加载字幕配置和颜色预设
+  useEffect(() => {
+    loadSubtitleConfig();
+    loadColorPresets();
+  }, []);
+
+  // 同步本地颜色选择到全局配置
+  useEffect(() => {
+    if (selectedFontColor !== config.subtitle.font_color || selectedBgColor !== config.subtitle.background_color) {
+      setConfig({
+        subtitle: {
+          ...config.subtitle,
+          font_color: selectedFontColor,
+          background_color: selectedBgColor,
+        },
+      });
+      // 同步到后端
+      updateSubtitleConfig({
+        font_color: selectedFontColor,
+        background_color: selectedBgColor,
+      });
+    }
+  }, [selectedFontColor, selectedBgColor]);
+
+  // 当全局配置变化时更新本地颜色选择
+  useEffect(() => {
+    setSelectedFontColor(config.subtitle.font_color);
+    setSelectedBgColor(config.subtitle.background_color);
+  }, [config.subtitle.font_color, config.subtitle.background_color]);
+
+  const loadSubtitleConfig = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/subtitle/config`);
+      const result = await response.json();
+      if (result.code === 200 && result.data) {
+        const data = result.data;
+        // 更新全局配置
+        setConfig({
+          subtitle: {
+            ...config.subtitle,
+            font_color: data.font_color || config.subtitle.font_color,
+            background_color: data.background_color || config.subtitle.background_color,
+            opacity: data.opacity !== undefined ? data.opacity : config.subtitle.opacity,
+            font_size: data.font_size !== undefined ? data.font_size : config.subtitle.font_size,
+            typing_speed: data.typing_speed !== undefined ? data.typing_speed : config.subtitle.typing_speed,
+          },
+        });
+        // 更新本地颜色选择
+        if (data.font_color) setSelectedFontColor(data.font_color);
+        if (data.background_color) setSelectedBgColor(data.background_color);
+      }
+    } catch (error) {
+      console.error('加载字幕配置失败:', error);
+    }
+  };
+
+  const updateSubtitleConfig = async (configUpdate: Partial<typeof config.subtitle>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/subtitle/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(configUpdate),
+      });
+      const result = await response.json();
+      if (result.code !== 200) {
+        console.error('更新字幕配置失败:', result.message);
+      }
+    } catch (error) {
+      console.error('更新字幕配置失败:', error);
+    }
+  };
+
+  const loadColorPresets = async () => {
+    setIsLoadingPresets(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/subtitle/color-presets`);
+      const result = await response.json();
+      if (result.code === 200 && result.data) {
+        const { font, background } = result.data;
+        // 合并内置预设和从后端获取的自定义预设
+        const builtinFontPresets = defaultColorPresets;
+        const customFontPresets = font
+          .filter((p: any) => p.is_custom)
+          .map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            color: p.color,
+            isCustom: true,
+          }));
+        setFontColorPresets([...builtinFontPresets, ...customFontPresets]);
+
+        // 背景预设
+        const builtinBgPresets = [
+          { id: 'aurora', name: '科技极光', color: '#6366f1' },
+          { id: 'custom', name: '自定义颜色', color: '#0a0a0f' },
+        ];
+        const customBgPresets = background
+          .filter((p: any) => p.is_custom)
+          .map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            color: p.color,
+            isCustom: true,
+          }));
+        setBgColorPresets([...builtinBgPresets, ...customBgPresets]);
+      }
+    } catch (error) {
+      console.error('加载颜色预设失败:', error);
+    } finally {
+      setIsLoadingPresets(false);
+    }
+  };
+
+  const saveColorPresetToBackend = async (type: 'font' | 'bg', name: string, color: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/subtitle/color-presets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, name, color }),
+      });
+      const result = await response.json();
+      if (result.code === 200 && result.data) {
+        return result.data;
+      }
+      throw new Error(result.message || '保存失败');
+    } catch (error) {
+      console.error('保存颜色预设失败:', error);
+      throw error;
+    }
+  };
+
+  const deleteColorPresetFromBackend = async (presetId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/subtitle/color-presets/${presetId}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      if (result.code !== 200) {
+        throw new Error(result.message || '删除失败');
+      }
+    } catch (error) {
+      console.error('删除颜色预设失败:', error);
+      throw error;
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -70,42 +219,59 @@ export const SubtitleVisual: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSaveColor = () => {
+  const handleSaveColor = async () => {
     if (!saveColorName.trim()) return;
 
-    const newPreset: ColorPreset = {
-      id: `custom-${Date.now()}`,
-      name: saveColorName.trim(),
-      color: saveColorValue,
-      isCustom: true,
-    };
+    try {
+      // 先保存到后端
+      const savedPreset = await saveColorPresetToBackend(saveColorType, saveColorName.trim(), saveColorValue);
 
-    if (saveColorType === 'font') {
-      setFontColorPresets([...fontColorPresets, newPreset]);
-      setSelectedFontColor(saveColorValue);
-    } else {
-      setBgColorPresets([...bgColorPresets, newPreset]);
-      setSelectedBgColor(saveColorValue);
+      // 更新本地状态
+      const newPreset: ColorPreset = {
+        id: savedPreset.id,
+        name: savedPreset.name,
+        color: savedPreset.color,
+        isCustom: true,
+      };
+
+      if (saveColorType === 'font') {
+        setFontColorPresets([...fontColorPresets, newPreset]);
+        setSelectedFontColor(saveColorValue);
+      } else {
+        setBgColorPresets([...bgColorPresets, newPreset]);
+        setSelectedBgColor(saveColorValue);
+      }
+
+      setSaveColorModalOpen(false);
+      setSaveColorName('');
+    } catch (error) {
+      alert('保存颜色预设失败，请重试');
     }
-
-    setSaveColorModalOpen(false);
-    setSaveColorName('');
   };
 
-  const handleDeletePreset = (type: 'font' | 'bg', id: string, e: React.MouseEvent) => {
+  const handleDeletePreset = async (type: 'font' | 'bg', id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (type === 'font') {
-      const preset = fontColorPresets.find(p => p.id === id);
-      if (preset && selectedFontColor === preset.color) {
-        setSelectedFontColor(defaultColorPresets[0].color);
+
+    try {
+      // 先删除后端
+      await deleteColorPresetFromBackend(id);
+
+      // 更新本地状态
+      if (type === 'font') {
+        const preset = fontColorPresets.find(p => p.id === id);
+        if (preset && selectedFontColor === preset.color) {
+          setSelectedFontColor(defaultColorPresets[0].color);
+        }
+        setFontColorPresets(fontColorPresets.filter(p => p.id !== id));
+      } else {
+        const preset = bgColorPresets.find(p => p.id === id);
+        if (preset && selectedBgColor === preset.color) {
+          setSelectedBgColor(bgColorPresets[0].color);
+        }
+        setBgColorPresets(bgColorPresets.filter(p => p.id !== id));
       }
-      setFontColorPresets(fontColorPresets.filter(p => p.id !== id));
-    } else {
-      const preset = bgColorPresets.find(p => p.id === id);
-      if (preset && selectedBgColor === preset.color) {
-        setSelectedBgColor(bgColorPresets[0].color);
-      }
-      setBgColorPresets(bgColorPresets.filter(p => p.id !== id));
+    } catch (error) {
+      alert('删除颜色预设失败，请重试');
     }
   };
 
@@ -424,7 +590,11 @@ export const SubtitleVisual: React.FC = () => {
                   max="1"
                   step="0.01"
                   value={config.subtitle.opacity}
-                  onChange={(e) => setConfig({ subtitle: { ...config.subtitle, opacity: parseFloat(e.target.value) } })}
+                  onChange={(e) => {
+                    const newOpacity = parseFloat(e.target.value);
+                    setConfig({ subtitle: { ...config.subtitle, opacity: newOpacity } });
+                    updateSubtitleConfig({ opacity: newOpacity });
+                  }}
                   className="w-full accent-[#6366f1]"
                 />
               </div>
@@ -439,7 +609,11 @@ export const SubtitleVisual: React.FC = () => {
                   min="12"
                   max="32"
                   value={config.subtitle.font_size}
-                  onChange={(e) => setConfig({ subtitle: { ...config.subtitle, font_size: parseInt(e.target.value) } })}
+                  onChange={(e) => {
+                    const newFontSize = parseInt(e.target.value);
+                    setConfig({ subtitle: { ...config.subtitle, font_size: newFontSize } });
+                    updateSubtitleConfig({ font_size: newFontSize });
+                  }}
                   className="w-full accent-[#6366f1]"
                 />
               </div>
@@ -454,7 +628,11 @@ export const SubtitleVisual: React.FC = () => {
                   min="10"
                   max="100"
                   value={config.subtitle.typing_speed}
-                  onChange={(e) => setConfig({ subtitle: { ...config.subtitle, typing_speed: parseInt(e.target.value) } })}
+                  onChange={(e) => {
+                    const newTypingSpeed = parseInt(e.target.value);
+                    setConfig({ subtitle: { ...config.subtitle, typing_speed: newTypingSpeed } });
+                    updateSubtitleConfig({ typing_speed: newTypingSpeed });
+                  }}
                   className="w-full accent-[#6366f1]"
                 />
               </div>

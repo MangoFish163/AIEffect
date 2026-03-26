@@ -19,6 +19,8 @@ export interface TTSConfig {
   engine: string;
   volume: number;
   auto_play: boolean;
+  save_audio: boolean;
+  play_mode: string;
 }
 
 export interface SubtitleConfig {
@@ -27,6 +29,8 @@ export interface SubtitleConfig {
   opacity: number;
   font_size: number;
   typing_speed: number;
+  is_visible?: boolean;
+  controls_hidden?: boolean;
 }
 
 export interface MemoryConfig {

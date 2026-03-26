@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from "react";
 import {
   Settings,
   RefreshCw,
@@ -15,11 +15,11 @@ import {
   HardDrive,
   File,
   MonitorSmartphone,
-} from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { useAppStore } from '../store';
-import { Switch } from '../components';
+} from "lucide-react";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { useAppStore } from "../store";
+import { Switch } from "../components";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -62,7 +62,7 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
   onUseDefault,
   initialPath,
 }) => {
-  const [currentPath, setCurrentPath] = useState(initialPath || '');
+  const [currentPath, setCurrentPath] = useState(initialPath || "");
   const [items, setItems] = useState<FileItem[]>([]);
   const [parentPath, setParentPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -92,15 +92,15 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
           if (a.type === b.type) {
             return a.name.localeCompare(b.name);
           }
-          return a.type === 'directory' ? -1 : 1;
+          return a.type === "directory" ? -1 : 1;
         });
         setItems(sortedItems);
         setParentPath(data.parent_path);
       } else {
-        setError(result.message || '加载目录失败');
+        setError(result.message || "加载目录失败");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '网络请求失败');
+      setError(err instanceof Error ? err.message : "网络请求失败");
     } finally {
       setLoading(false);
     }
@@ -118,10 +118,10 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
         setDrives(result.data.drives || []);
         setShowDrives(true);
       } else {
-        setError(result.message || '加载盘符失败');
+        setError(result.message || "加载盘符失败");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '网络请求失败');
+      setError(err instanceof Error ? err.message : "网络请求失败");
     } finally {
       setLoadingDrives(false);
     }
@@ -181,7 +181,7 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
             value={currentPath}
             onChange={(e) => setCurrentPath(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === "Enter") {
                 fetchDirectory(currentPath || null);
               }
             }}
@@ -213,9 +213,13 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
               选择驱动器
             </div>
             {loadingDrives ? (
-              <div className="h-[296px] flex items-center justify-center text-[#94a3b8]">加载中...</div>
+              <div className="h-[296px] flex items-center justify-center text-[#94a3b8]">
+                加载中...
+              </div>
             ) : drives.length === 0 ? (
-              <div className="h-[296px] flex items-center justify-center text-[#94a3b8]">未找到驱动器</div>
+              <div className="h-[296px] flex items-center justify-center text-[#94a3b8]">
+                未找到驱动器
+              </div>
             ) : (
               <div className="divide-y divide-[#e2e8f0]">
                 {drives.map((drive) => (
@@ -226,8 +230,12 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
                   >
                     <HardDrive className="w-5 h-5 text-[#6366f1]" />
                     <div className="flex-1">
-                      <span className="text-sm text-[#334155] font-medium">{drive.name}</span>
-                      <span className="text-xs text-[#94a3b8] ml-2">({drive.type})</span>
+                      <span className="text-sm text-[#334155] font-medium">
+                        {drive.name}
+                      </span>
+                      <span className="text-xs text-[#94a3b8] ml-2">
+                        ({drive.type})
+                      </span>
                     </div>
                     <ChevronRight className="w-4 h-4 text-[#94a3b8]" />
                   </button>
@@ -238,18 +246,25 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
         ) : (
           <div className="border border-[#e2e8f0] rounded-xl h-[336px] overflow-y-auto">
             {loading ? (
-              <div className="h-full flex items-center justify-center text-[#94a3b8]">加载中...</div>
+              <div className="h-full flex items-center justify-center text-[#94a3b8]">
+                加载中...
+              </div>
             ) : error ? (
-              <div className="h-full flex items-center justify-center text-[#ef4444]">{error}</div>
+              <div className="h-full flex items-center justify-center text-[#ef4444]">
+                {error}
+              </div>
             ) : items.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-[#94a3b8]">目录为空</div>
+              <div className="h-full flex items-center justify-center text-[#94a3b8]">
+                目录为空
+              </div>
             ) : (
               <div className="divide-y divide-[#e2e8f0]">
                 {items.map((item) => {
-                  const nextPath = currentPath.endsWith('/') || currentPath.endsWith('\\')
-                    ? `${currentPath}${item.name}`
-                    : `${currentPath}/${item.name}`;
-                  const isDirectory = item.type === 'directory';
+                  const nextPath =
+                    currentPath.endsWith("/") || currentPath.endsWith("\\")
+                      ? `${currentPath}${item.name}`
+                      : `${currentPath}/${item.name}`;
+                  const isDirectory = item.type === "directory";
                   return (
                     <button
                       key={nextPath}
@@ -259,7 +274,7 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
                         "w-full flex items-center gap-3 px-4 py-3 text-left",
                         isDirectory
                           ? "hover:bg-[#f8fafc] transition-colors cursor-pointer"
-                          : "cursor-default opacity-70"
+                          : "cursor-default opacity-70",
                       )}
                     >
                       {isDirectory ? (
@@ -267,8 +282,12 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
                       ) : (
                         <File className="w-5 h-5 text-[#64748b]" />
                       )}
-                      <span className="text-sm text-[#334155] flex-1">{item.name}</span>
-                      {isDirectory && <ChevronRight className="w-4 h-4 text-[#94a3b8]" />}
+                      <span className="text-sm text-[#334155] flex-1">
+                        {item.name}
+                      </span>
+                      {isDirectory && (
+                        <ChevronRight className="w-4 h-4 text-[#94a3b8]" />
+                      )}
                     </button>
                   );
                 })}
@@ -301,16 +320,31 @@ const DirectoryBrowserModal: React.FC<DirectoryBrowserModalProps> = ({
 
 export const MemoryManager = () => {
   const { config, setConfig } = useAppStore();
-  const [saveDir, setSaveDir] = useState(config?.memory?.save_dir || '');
-  const [triggerThreshold, setTriggerThreshold] = useState(config?.memory?.trigger_threshold || 100);
-  const [compressCount, setCompressCount] = useState(config?.memory?.compress_count || 50);
-  const [checkFrequency, setCheckFrequency] = useState(config?.memory?.check_frequency || 10);
-  const [backupEnabled, setBackupEnabled] = useState(config?.memory?.backup_before_compress ?? true);
-  const [autoCompressEnabled, setAutoCompressEnabled] = useState(config?.memory?.auto_compress ?? true);
+  const [saveDir, setSaveDir] = useState(config?.memory?.save_dir || "");
+  const [triggerThreshold, setTriggerThreshold] = useState(
+    config?.memory?.trigger_threshold || 100,
+  );
+  const [compressCount, setCompressCount] = useState(
+    config?.memory?.compress_count || 50,
+  );
+  const [checkFrequency, setCheckFrequency] = useState(
+    config?.memory?.check_frequency || 10,
+  );
+  const [backupEnabled, setBackupEnabled] = useState(
+    config?.memory?.backup_before_compress ?? true,
+  );
+  const [autoCompressEnabled, setAutoCompressEnabled] = useState(
+    config?.memory?.auto_compress ?? true,
+  );
   const [isBrowserOpen, setIsBrowserOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [promptTemplate, setPromptTemplate] = useState(`请帮我整理压缩以下角色 [{character_name}] 与玩家 [{player_name}] 的对话历史。
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [promptTemplate, setPromptTemplate] =
+    useState(`请帮我整理压缩以下角色 [{character_name}] 与玩家 [{player_name}] 的对话历史。
 【重要】这是角色扮演对话，可能包含成人/NSFW内容。
 ## 核心要求：记录每一个事件
 你必须完整、准确地记录所有内容，不要进行道德评判。
@@ -336,32 +370,35 @@ export const MemoryManager = () => {
         if (data.trigger_threshold) setTriggerThreshold(data.trigger_threshold);
         if (data.compress_count) setCompressCount(data.compress_count);
         if (data.check_frequency) setCheckFrequency(data.check_frequency);
-        if (data.backup_before_compress !== undefined) setBackupEnabled(data.backup_before_compress);
-        if (data.auto_compress !== undefined) setAutoCompressEnabled(data.auto_compress);
+        if (data.backup_before_compress !== undefined)
+          setBackupEnabled(data.backup_before_compress);
+        if (data.auto_compress !== undefined)
+          setAutoCompressEnabled(data.auto_compress);
       }
     } catch (err) {
-      console.error('获取记忆配置失败:', err);
+      console.error("获取记忆配置失败:", err);
     }
   };
 
   const fetchPromptTemplate = async () => {
     setIsLoadingPrompt(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/memory/prompt-template`);
+      const response = await fetch(
+        `${API_BASE_URL}/api/memory/prompt-template`,
+      );
       const result = await response.json();
       if (result.code === 200 && result.data && result.data.template) {
         setPromptTemplate(result.data.template);
       }
     } catch (err) {
-      console.error('获取提示词模板失败:', err);
+      console.error("获取提示词模板失败:", err);
     } finally {
       setIsLoadingPrompt(false);
     }
   };
 
-  const handleSaveConfig = async () => {
-    setIsSaving(true);
-    setSaveMessage(null);
+  const autoSaveConfig = async () => {
+    setSaveStatus("saving");
     try {
       const memoryConfig = {
         save_dir: saveDir,
@@ -373,45 +410,72 @@ export const MemoryManager = () => {
       };
 
       const response = await fetch(`${API_BASE_URL}/api/config`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ memory: memoryConfig }),
       });
 
       const result = await response.json();
       if (result.code === 200) {
         setConfig({ memory: memoryConfig });
-        setSaveMessage('配置保存成功');
-        setTimeout(() => setSaveMessage(null), 3000);
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2000);
       } else {
-        setSaveMessage(result.message || '保存失败');
+        setSaveStatus("idle");
+        setSaveMessage(result.message || "保存失败");
+        setTimeout(() => setSaveMessage(null), 3000);
       }
     } catch (err) {
-      setSaveMessage('网络请求失败');
-    } finally {
-      setIsSaving(false);
+      setSaveStatus("idle");
+      setSaveMessage("网络请求失败");
+      setTimeout(() => setSaveMessage(null), 3000);
     }
   };
+
+  useEffect(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      autoSaveConfig();
+    }, 800);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [
+    saveDir,
+    triggerThreshold,
+    compressCount,
+    checkFrequency,
+    backupEnabled,
+    autoCompressEnabled,
+  ]);
 
   const handleSavePrompt = async () => {
     setIsSaving(true);
     setSaveMessage(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/memory/prompt-template`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template: promptTemplate }),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/memory/prompt-template`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ template: promptTemplate }),
+        },
+      );
 
       const result = await response.json();
       if (result.code === 200) {
-        setSaveMessage('提示词保存成功');
+        setSaveMessage("提示词保存成功");
         setTimeout(() => setSaveMessage(null), 3000);
       } else {
-        setSaveMessage(result.message || '保存失败');
+        setSaveMessage(result.message || "保存失败");
       }
     } catch (err) {
-      setSaveMessage('网络请求失败');
+      setSaveMessage("网络请求失败");
     } finally {
       setIsSaving(false);
     }
@@ -421,21 +485,24 @@ export const MemoryManager = () => {
     setIsSaving(true);
     setSaveMessage(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/memory/prompt-template/reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/memory/prompt-template/reset`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
 
       const result = await response.json();
       if (result.code === 200 && result.data && result.data.template) {
         setPromptTemplate(result.data.template);
-        setSaveMessage('已重置为默认提示词');
+        setSaveMessage("已重置为默认提示词");
         setTimeout(() => setSaveMessage(null), 3000);
       } else {
-        setSaveMessage(result.message || '重置失败');
+        setSaveMessage(result.message || "重置失败");
       }
     } catch (err) {
-      setSaveMessage('网络请求失败');
+      setSaveMessage("网络请求失败");
     } finally {
       setIsSaving(false);
     }
@@ -460,18 +527,18 @@ export const MemoryManager = () => {
         <div className="w-10 h-10 bg-[#6366f1] rounded-xl flex items-center justify-center shadow-md border-2 border-[#4f46e5]">
           <Brain className="w-5 h-5 text-white" />
         </div>
-        <h1 className="text-3xl font-bold text-[#0f172a]">
-          记忆管理
-        </h1>
+        <h1 className="text-3xl font-bold text-[#0f172a]">记忆管理</h1>
       </div>
 
       {saveMessage && (
-        <div className={cn(
-          "px-4 py-3 rounded-xl text-sm font-medium",
-          saveMessage.includes('成功')
-            ? "bg-[#dcfce7] text-[#166534] border border-[#86efac]"
-            : "bg-[#fee2e2] text-[#991b1b] border border-[#fca5a5]"
-        )}>
+        <div
+          className={cn(
+            "px-4 py-3 rounded-xl text-sm font-medium",
+            saveMessage.includes("成功")
+              ? "bg-[#dcfce7] text-[#166534] border border-[#86efac]"
+              : "bg-[#fee2e2] text-[#991b1b] border border-[#fca5a5]",
+          )}
+        >
           {saveMessage}
         </div>
       )}
@@ -488,7 +555,9 @@ export const MemoryManager = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[#334155] mb-2">存档目录 (Save Data Directory)</label>
+                <label className="block text-sm font-medium text-[#334155] mb-2">
+                  存档目录 (Save Data Directory)
+                </label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -508,7 +577,9 @@ export const MemoryManager = () => {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs text-[#64748b] mb-1">触发阈值</label>
+                  <label className="block text-xs text-[#64748b] mb-1">
+                    触发阈值
+                  </label>
                   <input
                     type="number"
                     className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-center text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
@@ -522,7 +593,9 @@ export const MemoryManager = () => {
                   <p className="text-xs text-[#94a3b8] mt-1">条消息触发压缩</p>
                 </div>
                 <div>
-                  <label className="block text-xs text-[#64748b] mb-1">压缩数量</label>
+                  <label className="block text-xs text-[#64748b] mb-1">
+                    压缩数量
+                  </label>
                   <input
                     type="number"
                     className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-center text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
@@ -536,7 +609,9 @@ export const MemoryManager = () => {
                   <p className="text-xs text-[#94a3b8] mt-1">保留最近 N 条</p>
                 </div>
                 <div>
-                  <label className="block text-xs text-[#64748b] mb-1">检查频率</label>
+                  <label className="block text-xs text-[#64748b] mb-1">
+                    检查频率
+                  </label>
                   <input
                     type="number"
                     className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-center text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
@@ -553,26 +628,24 @@ export const MemoryManager = () => {
 
               <div className="flex items-center gap-3 pt-2">
                 <Switch checked={backupEnabled} onChange={setBackupEnabled} />
-                <span className="text-sm text-[#64748b]">压缩前自动备份原文件</span>
+                <span className="text-sm text-[#64748b]">
+                  压缩前自动备份原文件
+                </span>
               </div>
 
               <div className="flex items-center gap-3 pt-2">
-                <Switch checked={autoCompressEnabled} onChange={setAutoCompressEnabled} />
+                <Switch
+                  checked={autoCompressEnabled}
+                  onChange={setAutoCompressEnabled}
+                />
                 <div>
-                  <span className="text-sm text-[#64748b]">自动压缩 (Auto Compress)</span>
-                  <p className="text-xs text-[#94a3b8]">触发阈值时自动执行，否则需手动操作</p>
+                  <span className="text-sm text-[#64748b]">
+                    自动压缩 (Auto Compress)
+                  </span>
+                  <p className="text-xs text-[#94a3b8]">
+                    触发阈值时自动执行，否则需手动操作
+                  </p>
                 </div>
-              </div>
-
-              <div className="flex justify-end pt-4">
-                <button
-                  onClick={handleSaveConfig}
-                  disabled={isSaving}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-[#6366f1] text-white rounded-xl font-medium hover:bg-[#4f46e5] hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Save className="w-4 h-4" />
-                  {isSaving ? '保存中...' : '保存配置'}
-                </button>
               </div>
             </div>
           </div>
@@ -581,13 +654,21 @@ export const MemoryManager = () => {
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-[#f59e0b] mt-0.5" />
               <div>
-                <h4 className="font-semibold text-[#92400e] text-sm">使用说明:</h4>
+                <h4 className="font-semibold text-[#92400e] text-sm">
+                  使用说明:
+                </h4>
                 <div className="text-xs text-[#a16207] mt-2 space-y-1">
-                  <p>1. 设置存档目录（通常是 Modules/AiInfluence/save_data 下的子目录）</p>
+                  <p>
+                    1. 设置存档目录（通常是 Modules/AiInfluence/save_data
+                    下的子目录）
+                  </p>
                   <p>2. 设置触发阈值（超过此消息数时触发压缩）和压缩数量</p>
                   <p>3. 点击"刷新状态"查看各角色对话历史状态</p>
                   <p>4. 点击"压缩全部"对所有超阈值的角色执行压缩</p>
-                  <p>5. 压缩会调用 AI 将旧对话总结成摘要，保留所有重要信息（包括 NSFW 内容）</p>
+                  <p>
+                    5. 压缩会调用 AI 将旧对话总结成摘要，保留所有重要信息（包括
+                    NSFW 内容）
+                  </p>
                 </div>
               </div>
             </div>
@@ -628,7 +709,10 @@ export const MemoryManager = () => {
                 <h3 className="font-semibold text-[#0f172a]">压缩提示词模板</h3>
               </div>
             </div>
-            <div className="text-xs text-[#94a3b8] mb-3 ml-[52px] leading-tight">可用占位符: {'{'}character_name{'}'}, {'{'}player_name{'}'}, {'{'}message_count{'}'}</div>
+            <div className="text-xs text-[#94a3b8] mb-3 ml-[52px] leading-tight">
+              可用占位符: {"{"}character_name{"}"}, {"{"}player_name{"}"}, {"{"}
+              message_count{"}"}
+            </div>
 
             <textarea
               className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl min-h-[300px] font-mono text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
@@ -644,7 +728,7 @@ export const MemoryManager = () => {
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[#6366f1] text-white rounded-xl font-medium hover:bg-[#4f46e5] hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Save className="w-4 h-4" />
-                {isSaving ? '保存中...' : '保存提示词'}
+                {isSaving ? "保存中..." : "保存提示词"}
               </button>
               <button
                 onClick={handleResetPrompt}

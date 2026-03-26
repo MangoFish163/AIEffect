@@ -17,8 +17,8 @@ interface AppState {
 
 const defaultConfig: AppConfig = {
   api: {
-    provider: 'deepseek',
-    api_url: '',
+    provider: 'local',
+    api_url: 'http://127.0.0.1:11434/v1',
     api_key: '',
     model_name: '',
   },
@@ -27,6 +27,8 @@ const defaultConfig: AppConfig = {
     engine: 'gpt_sovits',
     volume: 0.8,
     auto_play: true,
+    save_audio: true,
+    play_mode: 'dialog',
   },
   subtitle: {
     font_color: '#ffffff',
@@ -34,6 +36,8 @@ const defaultConfig: AppConfig = {
     opacity: 0.9,
     font_size: 16,
     typing_speed: 30,
+    is_visible: true,
+    controls_hidden: false,
   },
   memory: {
     save_dir: './data/memories',

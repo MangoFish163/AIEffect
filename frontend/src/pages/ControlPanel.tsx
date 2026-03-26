@@ -890,35 +890,52 @@ export const ControlPanel: React.FC = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        
+
         // 先尝试从缓存加载模型配置
         const cached = loadCachedModelConfig();
         let clientHash = cached?.hash || '';
-        
-        // 如果有缓存，先使用缓存数据渲染
-        if (cached?.api) {
-          setConfig({
-            api: cached.api,
-            tts: config.tts,
-            subtitle: config.subtitle,
-            memory: config.memory,
-            ports: config.ports,
-            lan_enabled: config.lan_enabled,
-          });
-          // 记录最后保存的配置，用于后续比较
-          lastSavedConfigRef.current = JSON.stringify(cached.api);
+
+        // 先获取服务商预设列表（用于验证provider有效性）
+        let customList: ProviderPreset[] = [];
+        const providersRes = await fetch(`${API_BASE_URL}/api/providers`);
+        if (providersRes.ok) {
+          const providersData = await providersRes.json();
+          if (providersData.data?.custom) {
+            customList = providersData.data.custom.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              icon: p.icon,
+              apiUrl: p.api_url,
+              apiKey: p.api_key,
+              modelName: p.model_name,
+              docUrl: p.doc_url,
+              curlExample: p.curl_example,
+              isCustom: p.is_custom,
+            }));
+            setCustomPresets(customList);
+          }
         }
-        
+
+        // 获取所有可用预设ID（包括内置和自定义）
+        const allPresetIds = [...BUILTIN_PRESETS.map(p => p.id), ...customList.map(p => p.id)];
+
         // 携带hash请求后端，进行校验
         const configRes = await fetch(`${API_BASE_URL}/api/config${clientHash ? `?hash=${clientHash}` : ''}`);
         if (configRes.ok) {
           const configData = await configRes.json();
           if (configData.data) {
-            // 如果后端返回hash_mismatch为true，说明需要更新配置
+            // 如果后端返回hash_mismatch为true或没有缓存，使用后端数据
             if (configData.hash_mismatch || !cached) {
+              // 检查后端返回的provider是否有效，无效则默认使用本地模型
+              const savedProvider = configData.data.api?.provider;
+              const isValidProvider = savedProvider && allPresetIds.includes(savedProvider);
+              const defaultProvider = isValidProvider ? savedProvider : 'local';
+              // 获取默认预设的配置
+              const defaultPreset = BUILTIN_PRESETS.find(p => p.id === defaultProvider);
+
               const newApiConfig = {
-                provider: configData.data.api?.provider || 'deepseek',
-                api_url: configData.data.api?.api_url || '',
+                provider: defaultProvider,
+                api_url: configData.data.api?.api_url || defaultPreset?.apiUrl || '',
                 api_key: configData.data.api?.api_key || '',
                 model_name: configData.data.api?.model_name || '',
               };
@@ -934,30 +951,48 @@ export const ControlPanel: React.FC = () => {
               const newHash = configData.server_hash || generateConfigHash(newApiConfig);
               saveCachedModelConfig(newApiConfig, newHash);
               lastSavedConfigRef.current = JSON.stringify(newApiConfig);
+            } else {
+              // 有缓存且hash匹配，但仍需验证provider是否有效
+              const cachedProvider = cached.api?.provider;
+              const isCachedProviderValid = cachedProvider && allPresetIds.includes(cachedProvider);
+
+              if (!isCachedProviderValid) {
+                // 缓存的provider无效，回退到本地模型
+                const localPreset = BUILTIN_PRESETS.find(p => p.id === 'local');
+                const fallbackConfig = {
+                  provider: 'local',
+                  api_url: localPreset?.apiUrl || 'http://127.0.0.1:11434/v1',
+                  api_key: '',
+                  model_name: '',
+                };
+                setConfig({
+                  api: fallbackConfig,
+                  tts: config.tts,
+                  subtitle: config.subtitle,
+                  memory: config.memory,
+                  ports: config.ports,
+                  lan_enabled: config.lan_enabled,
+                });
+                // 更新缓存
+                const newHash = generateConfigHash(fallbackConfig);
+                saveCachedModelConfig(fallbackConfig, newHash);
+                lastSavedConfigRef.current = JSON.stringify(fallbackConfig);
+              } else {
+                // 缓存有效，使用缓存数据
+                setConfig({
+                  api: cached.api,
+                  tts: config.tts,
+                  subtitle: config.subtitle,
+                  memory: config.memory,
+                  ports: config.ports,
+                  lan_enabled: config.lan_enabled,
+                });
+                lastSavedConfigRef.current = JSON.stringify(cached.api);
+              }
             }
             setLanEnabled(configData.data.lan_enabled || false);
             setTtsEnabled(configData.data.tts?.enabled ?? true);
             setAutoPlayEnabled(configData.data.tts?.auto_play ?? true);
-          }
-        }
-
-        // 获取服务商预设列表
-        const providersRes = await fetch(`${API_BASE_URL}/api/providers`);
-        if (providersRes.ok) {
-          const providersData = await providersRes.json();
-          if (providersData.data?.custom) {
-            const customList = providersData.data.custom.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              icon: p.icon,
-              apiUrl: p.api_url,
-              apiKey: p.api_key,
-              modelName: p.model_name,
-              docUrl: p.doc_url,
-              curlExample: p.curl_example,
-              isCustom: p.is_custom,
-            }));
-            setCustomPresets(customList);
           }
         }
       } catch (error) {
@@ -969,6 +1004,33 @@ export const ControlPanel: React.FC = () => {
 
     fetchData();
   }, []);
+
+  // 当自定义预设列表加载完成后，验证当前provider是否仍然有效
+  useEffect(() => {
+    // 只有在非加载状态下才进行验证
+    if (isLoading) return;
+
+    const allPresetIds = [...BUILTIN_PRESETS.map(p => p.id), ...customPresets.map(p => p.id)];
+    const currentProvider = config.api.provider;
+
+    // 如果当前provider不在预设列表中，回退到本地模型
+    if (currentProvider && !allPresetIds.includes(currentProvider)) {
+      const localPreset = BUILTIN_PRESETS.find(p => p.id === 'local');
+      const fallbackConfig = {
+        provider: 'local',
+        api_url: localPreset?.apiUrl || 'http://127.0.0.1:11434/v1',
+        api_key: '',
+        model_name: '',
+      };
+      setConfig({
+        api: fallbackConfig,
+      });
+      // 更新缓存
+      const newHash = generateConfigHash(fallbackConfig);
+      saveCachedModelConfig(fallbackConfig, newHash);
+      lastSavedConfigRef.current = JSON.stringify(fallbackConfig);
+    }
+  }, [customPresets, isLoading]);
 
   // 保存配置到后端
   const saveConfig = async (configToSave?: typeof config, isAutoSave: boolean = false) => {
@@ -1284,9 +1346,18 @@ export const ControlPanel: React.FC = () => {
         if (configData.data) {
           // 如果后端返回hash_mismatch为true，说明需要更新配置
           if (configData.hash_mismatch) {
+            // 获取所有可用预设ID
+            const allPresetIds = [...BUILTIN_PRESETS.map(p => p.id), ...customPresets.map(p => p.id)];
+            // 检查后端返回的provider是否有效，无效则默认使用本地模型
+            const savedProvider = configData.data.api?.provider;
+            const isValidProvider = savedProvider && allPresetIds.includes(savedProvider);
+            const defaultProvider = isValidProvider ? savedProvider : 'local';
+            // 获取默认预设的配置
+            const defaultPreset = BUILTIN_PRESETS.find(p => p.id === defaultProvider);
+
             const newApiConfig = {
-              provider: configData.data.api?.provider || 'deepseek',
-              api_url: configData.data.api?.api_url || '',
+              provider: defaultProvider,
+              api_url: configData.data.api?.api_url || defaultPreset?.apiUrl || '',
               api_key: configData.data.api?.api_key || '',
               model_name: configData.data.api?.model_name || '',
             };
@@ -1365,13 +1436,14 @@ export const ControlPanel: React.FC = () => {
       });
       if (res.ok) {
         setCustomPresets(customPresets.filter((p) => p.id !== id));
-        // 如果删除的是当前选中的预设，切换到默认预设
+        // 如果删除的是当前选中的预设，切换到本地模型
         if (config.api.provider === id) {
+          const localPreset = BUILTIN_PRESETS.find(p => p.id === 'local') || BUILTIN_PRESETS[0];
           setConfig({
             api: {
               ...config.api,
-              provider: BUILTIN_PRESETS[0].id,
-              api_url: BUILTIN_PRESETS[0].apiUrl,
+              provider: localPreset.id,
+              api_url: localPreset.apiUrl,
             },
           });
         }
@@ -1958,6 +2030,12 @@ const AIAssistantChat: React.FC = () => {
   ]);
   const [inputValue, setInputValue] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [modelStatus, setModelStatus] = useState<{
+    configured: boolean;
+    error?: string;
+    checked: boolean;
+  }>({ configured: false, checked: false });
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -1968,8 +2046,91 @@ const AIAssistantChat: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
+  // 检查模型配置状态
+  React.useEffect(() => {
+    const checkModelStatus = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/ai-assistant/status`);
+        if (response.ok) {
+          const result = await response.json();
+          setModelStatus({
+            configured: result.data?.model_configured || false,
+            error: result.data?.error_message || undefined,
+            checked: true,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to check model status:", error);
+        setModelStatus({ configured: false, error: "无法连接到服务", checked: true });
+      }
+    };
+
+    // 立即检查一次
+    checkModelStatus();
+
+    // 每 5 秒轮询检查配置状态
+    const intervalId = setInterval(checkModelStatus, 5000);
+
+    // 窗口获得焦点时也检查一次
+    const handleFocus = () => {
+      checkModelStatus();
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
+
+  // 加载历史聊天记录
+  React.useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/ai-assistant/history`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.data?.messages?.length > 0) {
+            const historyMessages = result.data.messages.map((msg: any) => ({
+              id: msg.id,
+              role: msg.role,
+              content: msg.content,
+              timestamp: new Date(msg.timestamp),
+            }));
+            setMessages([
+              {
+                id: "1",
+                role: "assistant",
+                content:
+                  "你好呀～我是星野，是 AI Voice Bridge 的虚拟助手。我可以将文字变成有感情的声音，还能理解你说的话哦！有什么想聊的吗？",
+                timestamp: new Date(),
+              },
+              ...historyMessages,
+            ]);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load chat history:", error);
+      }
+    };
+    loadHistory();
+  }, []);
+
+  const handleSend = async () => {
+    if (!inputValue.trim() || isLoading) return;
+
+    // 检查模型是否已配置
+    if (!modelStatus.configured) {
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: "assistant",
+        content: `⚠️ 模型未配置\n\n${modelStatus.error || "请先前往控制面板的「模型配置」区域，配置 API 地址、API Key 和模型名称后再试。"}`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      setInputValue("");
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -1980,17 +2141,63 @@ const AIAssistantChat: React.FC = () => {
 
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
+    setIsLoading(true);
 
-    // 模拟 AI 回复
-    setTimeout(() => {
-      const assistantMessage: Message = {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/ai-assistant/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: userMessage.id,
+          content: userMessage.content,
+        }),
+      });
+
+      const result = await response.json();
+
+      // 处理模型未配置的情况
+      if (result.code === 400 && result.data?.configured === false) {
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: `⚠️ 模型未配置\n\n${result.data?.error || "请先前往控制面板的「模型配置」区域，配置 API 地址、API Key 和模型名称后再试。"}`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+        // 更新模型状态
+        setModelStatus({
+          configured: false,
+          error: result.data?.error,
+          checked: true,
+        });
+        return;
+      }
+
+      if (response.ok && result.data?.message) {
+        const assistantMessage: Message = {
+          id: result.data.message.id,
+          role: result.data.message.role,
+          content: result.data.message.content,
+          timestamp: new Date(result.data.message.timestamp),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      } else {
+        throw new Error(result.message || "Failed to get response");
+      }
+    } catch (error) {
+      console.error("Chat error:", error);
+      const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: "收到你的消息啦！我正在思考如何回答...",
+        content: "抱歉，与服务端通信时发生错误。请检查网络连接或 API 配置。",
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, assistantMessage]);
-    }, 1000);
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -2006,18 +2213,55 @@ const AIAssistantChat: React.FC = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleRegenerate = (messageId: string) => {
-    // 模拟重新生成：删除该消息并重新生成
+  const handleRegenerate = async (messageId: string) => {
+    // 找到该 AI 消息对应的用户消息
+    const messageIndex = messages.findIndex((m) => m.id === messageId);
+    if (messageIndex <= 0) return;
+
+    // 获取对应用户消息的内容
+    let userMessage: Message | null = null;
+    for (let i = messageIndex - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        userMessage = messages[i];
+        break;
+      }
+    }
+
+    if (!userMessage) return;
+
+    // 删除该 AI 消息
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: Date.now().toString(),
-        role: "assistant",
-        content: "让我重新思考一下这个问题...",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-    }, 500);
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/ai-assistant/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: Date.now().toString(),
+          content: userMessage.content,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.data?.message) {
+          const assistantMessage: Message = {
+            id: result.data.message.id,
+            role: result.data.message.role,
+            content: result.data.message.content,
+            timestamp: new Date(result.data.message.timestamp),
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+        }
+      }
+    } catch (error) {
+      console.error("Regenerate error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePlayVoice = (message: Message) => {
@@ -2039,6 +2283,27 @@ const AIAssistantChat: React.FC = () => {
 
   return (
     <div className="flex flex-col h-[400px]">
+      {/* 模型未配置提示卡片 */}
+      {modelStatus.checked && !modelStatus.configured && (
+        <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-amber-800 mb-1">AI 模型未配置</h4>
+              <p className="text-xs text-amber-700 mb-2">
+                {modelStatus.error || "请先配置模型信息后再使用 AI 助手功能"}
+              </p>
+              <p className="text-xs text-amber-600">
+                请前往控制面板的「模型配置」区域，设置 API 地址、API Key 和模型名称
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
         {messages.map((message) => {
@@ -2130,8 +2395,18 @@ const AIAssistantChat: React.FC = () => {
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder="输入消息，或按住空格键说话..."
-          className="w-full pl-4 pr-24 py-3 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
+          disabled={isLoading || (modelStatus.checked && !modelStatus.configured)}
+          placeholder={
+            isLoading
+              ? "AI 正在思考中..."
+              : modelStatus.checked && !modelStatus.configured
+              ? "请先配置 AI 模型..."
+              : "输入消息，或按住空格键说话..."
+          }
+          className={cn(
+            "w-full pl-4 pr-24 py-3 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200",
+            (isLoading || (modelStatus.checked && !modelStatus.configured)) && "opacity-60 cursor-not-allowed"
+          )}
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           <button className="p-2 text-[#94a3b8] hover:text-[#6366f1] transition-colors duration-200">
@@ -2139,15 +2414,19 @@ const AIAssistantChat: React.FC = () => {
           </button>
           <button
             onClick={handleSend}
-            disabled={!inputValue.trim()}
+            disabled={!inputValue.trim() || isLoading}
             className={cn(
               "p-2 rounded-lg transition-all duration-200",
-              inputValue.trim()
+              inputValue.trim() && !isLoading
                 ? "bg-[#6366f1] text-white hover:bg-[#4f46e5]"
                 : "bg-[#e2e8f0] text-[#94a3b8] cursor-not-allowed",
             )}
           >
-            <Play className="w-4 h-4" />
+            {isLoading ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Play className="w-4 h-4" />
+            )}
           </button>
         </div>
       </div>

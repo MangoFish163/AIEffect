@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Mic,
   MicOff,
@@ -27,14 +27,14 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const API_BASE_URL = "";
+
 export const VoiceConfig: React.FC = () => {
   const { config, setConfig } = useAppStore();
   const [activeTab, setActiveTab] = useState<"tts" | "asr">("tts");
   const [activeEngine, setActiveEngine] = useState("gptsovits");
-  const [ttsEnabled, setTtsEnabled] = useState(true);
-  const [autoPlayEnabled, setAutoPlayEnabled] = useState(true);
-  const [saveAudioEnabled, setSaveAudioEnabled] = useState(true);
-  const [mixEnabled, setMixEnabled] = useState(false); // 混音播放状态，默认停用
+  const [mixEnabled, setMixEnabled] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   // ASR 状态
   const [asrEnabled, setAsrEnabled] = useState(false);
@@ -46,6 +46,121 @@ export const VoiceConfig: React.FC = () => {
   const [xunfeiAppId, setXunfeiAppId] = useState("");
   const [xunfeiApiKey, setXunfeiApiKey] = useState("");
   const [xunfeiApiSecret, setXunfeiApiSecret] = useState("");
+
+  // 从后端获取 TTS 配置
+  const fetchTTSConfig = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/tts/config`);
+      const result = await response.json();
+      if (result.code === 200 && result.data) {
+        const ttsConfig = result.data;
+        setConfig({
+          tts: {
+            ...config.tts,
+            enabled: ttsConfig.enabled ?? config.tts.enabled,
+            auto_play: ttsConfig.auto_play ?? config.tts.auto_play,
+            save_audio: ttsConfig.save_audio ?? config.tts.save_audio,
+            play_mode: ttsConfig.play_mode ?? config.tts.play_mode,
+            volume: ttsConfig.volume ?? config.tts.volume,
+            engine: ttsConfig.engine ?? config.tts.engine,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch TTS config:", error);
+    }
+  }, []);
+
+  // 更新后端 TTS 配置
+  const updateTTSConfig = useCallback(async (updates: Partial<typeof config.tts>) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/tts/config`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      });
+      const result = await response.json();
+      if (result.code !== 200) {
+        console.error("Failed to update TTS config:", result.message);
+      }
+    } catch (error) {
+      console.error("Failed to update TTS config:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // 组件挂载时获取配置
+  useEffect(() => {
+    fetchTTSConfig();
+  }, [fetchTTSConfig]);
+
+  // 处理 TTS 启用状态变更
+  const handleTTSEnabledChange = (enabled: boolean) => {
+    setConfig({
+      tts: {
+        ...config.tts,
+        enabled,
+      },
+    });
+    updateTTSConfig({ enabled });
+  };
+
+  // 处理自动播放状态变更
+  const handleAutoPlayChange = (auto_play: boolean) => {
+    setConfig({
+      tts: {
+        ...config.tts,
+        auto_play,
+      },
+    });
+    updateTTSConfig({ auto_play });
+  };
+
+  // 处理保存音频状态变更
+  const handleSaveAudioChange = (save_audio: boolean) => {
+    setConfig({
+      tts: {
+        ...config.tts,
+        save_audio,
+      },
+    });
+    updateTTSConfig({ save_audio });
+  };
+
+  // 处理播放模式变更
+  const handlePlayModeChange = (play_mode: string) => {
+    setConfig({
+      tts: {
+        ...config.tts,
+        play_mode,
+      },
+    });
+    updateTTSConfig({ play_mode });
+  };
+
+  // 处理音量变更
+  const handleVolumeChange = (volume: number) => {
+    setConfig({
+      tts: {
+        ...config.tts,
+        volume,
+      },
+    });
+    // 音量变更使用防抖，避免频繁请求
+    debouncedUpdateVolume(volume);
+  };
+
+  // 防抖函数
+  const debouncedUpdateVolume = useCallback(
+    debounce((volume: number) => {
+      updateTTSConfig({ volume });
+    }, 500),
+    [updateTTSConfig]
+  );
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -108,22 +223,28 @@ export const VoiceConfig: React.FC = () => {
                         开启后将朗读 AI 回复
                       </p>
                     </div>
-                    <Switch checked={ttsEnabled} onChange={setTtsEnabled} />
+                    <Switch
+                      checked={config.tts.enabled}
+                      onChange={handleTTSEnabledChange}
+                      disabled={isLoading}
+                    />
                   </div>
 
                   <div className="flex items-center justify-between pt-2">
                     <span className="text-sm text-[#64748b]">自动播放</span>
                     <Switch
-                      checked={autoPlayEnabled}
-                      onChange={setAutoPlayEnabled}
+                      checked={config.tts.auto_play}
+                      onChange={handleAutoPlayChange}
+                      disabled={isLoading}
                     />
                   </div>
 
                   <div className="flex items-center justify-between pt-2">
                     <span className="text-sm text-[#64748b]">保存音频文件</span>
                     <Switch
-                      checked={saveAudioEnabled}
-                      onChange={setSaveAudioEnabled}
+                      checked={config.tts.save_audio}
+                      onChange={handleSaveAudioChange}
+                      disabled={isLoading}
                     />
                   </div>
 
@@ -132,13 +253,14 @@ export const VoiceConfig: React.FC = () => {
                       播放模式
                     </label>
                     <Select
-                      value="dialog"
-                      onChange={() => {}}
+                      value={config.tts.play_mode}
+                      onChange={handlePlayModeChange}
                       options={[
                         { value: "dialog", label: "只播放对话 (Dialog Only)" },
                         { value: "full", label: "播放全文 (Full Text)" },
                       ]}
                       placeholder="选择播放模式"
+                      disabled={isLoading}
                     />
                   </div>
                 </div>
@@ -169,14 +291,10 @@ export const VoiceConfig: React.FC = () => {
                       step="0.01"
                       value={config.tts.volume}
                       onChange={(e) =>
-                        setConfig({
-                          tts: {
-                            ...config.tts,
-                            volume: parseFloat(e.target.value),
-                          },
-                        })
+                        handleVolumeChange(parseFloat(e.target.value))
                       }
                       className="w-full accent-[#6366f1]"
+                      disabled={isLoading}
                     />
                   </div>
 
@@ -579,67 +697,58 @@ export const VoiceConfig: React.FC = () => {
 
                   <div className="flex items-center justify-between mt-6">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-[#64748b]">发音人选择</span>
-                      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#fef3c7] text-[#d97706] rounded-lg text-sm">
-                        <AlertCircle className="w-4 h-4" />
-                        未配置
-                      </div>
+                      <div className="w-2 h-2 rounded-full bg-[#ef4444]"></div>
+                      <span className="text-sm text-[#64748b]">未连接</span>
                     </div>
-                    <Select
-                      value="x4_yezi"
-                      onChange={() => {}}
-                      options={[{ value: "x4_yezi", label: "x4_yezi" }]}
-                      placeholder="选择发音人"
-                    />
+                    <button className="px-6 py-2.5 bg-[#6366f1] text-white rounded-xl font-medium hover:bg-[#4f46e5] hover:shadow-md transition-all duration-200">
+                      测试连接
+                    </button>
                   </div>
                 </div>
               )}
             </div>
           </>
         ) : (
+          /* ASR 配置 */
           <>
-            {/* ASR 左侧栏 */}
-            <div className="space-y-6">
+            <div className="lg:col-span-2 space-y-6">
               <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#e2e8f0]">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-[#f0f4ff] rounded-xl flex items-center justify-center">
-                    <Keyboard className="w-5 h-5 text-[#6366f1]" />
+                    <Mic className="w-5 h-5 text-[#6366f1]" />
                   </div>
-                  <h3 className="font-semibold text-[#0f172a]">
-                    全局语音快捷键
-                  </h3>
+                  <h3 className="font-semibold text-[#0f172a]">ASR 设置</h3>
                 </div>
-                <p className="text-xs text-[#64748b] mb-4">
-                  设置全局快捷键，在游戏中按下即可语音输入，识别后自动粘贴到当前窗口
-                </p>
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-[#334155]">
-                      启用全局快捷键
-                    </span>
-                    <Switch checked={asrEnabled} onChange={setAsrEnabled} />
+                    <div>
+                      <p className="text-sm font-medium text-[#334155]">
+                        启用语音输入
+                      </p>
+                      <p className="text-xs text-[#64748b]">
+                        开启后可以通过语音输入文字
+                      </p>
+                    </div>
+                    <Switch
+                      checked={asrEnabled}
+                      onChange={setAsrEnabled}
+                    />
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-medium text-[#334155]">
-                        快捷键
-                      </label>
-                      <button className="px-3 py-1 bg-[#f0f4ff] text-[#6366f1] border border-[#6366f1]/20 rounded-full text-xs font-medium hover:bg-[#e0e7ff] transition-all duration-200">
-                        修改
-                      </button>
-                    </div>
+                  <div className="pt-2">
+                    <label className="block text-sm font-medium text-[#334155] mb-2">
+                      快捷键
+                    </label>
                     <input
                       type="text"
                       value={shortcut}
                       onChange={(e) => setShortcut(e.target.value)}
                       className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
-                      placeholder="Ctrl+Shift+,"
                     />
                   </div>
 
-                  <div>
+                  <div className="pt-2">
                     <label className="block text-sm font-medium text-[#334155] mb-2">
                       粘贴模式
                     </label>
@@ -647,135 +756,72 @@ export const VoiceConfig: React.FC = () => {
                       value={pasteMode}
                       onChange={setPasteMode}
                       options={[
-                        { value: "direct", label: "直接粘贴 (Ctrl+V)" },
-                        { value: "ahk", label: "AutoHotkey 模式" },
+                        { value: "direct", label: "直接输入 (Direct)" },
+                        { value: "clipboard", label: "剪贴板 (Clipboard)" },
                       ]}
                       placeholder="选择粘贴模式"
                     />
                   </div>
-
-                  <div className="bg-[#f8fafc] rounded-xl p-4 space-y-2">
-                    <p className="text-sm font-medium text-[#334155]">
-                      使用说明：
-                    </p>
-                    <ul className="text-xs text-[#64748b] space-y-1 list-disc list-inside">
-                      <li>按下快捷键开始录音，再按一次停止录音并识别</li>
-                      <li>识别完成后自动复制到剪贴板并粘贴到当前焦点窗口</li>
-                      <li>直接粘贴模式使用 Ctrl+V，适用于大多数应用</li>
-                      <li>
-                        AutoHotkey 模式使用 Ctrl+Shift+V，需配合 AHK 脚本使用
-                      </li>
-                      <li>需要先配置语音识别 API（百度或讯飞）才能使用</li>
-                      <li>快捷键必须是组合键（如 Ctrl+Shift+,）</li>
-                    </ul>
-                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* ASR 右侧栏 */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* 百度语音识别 */}
               <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#e2e8f0]">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-[#f0f4ff] rounded-xl flex items-center justify-center">
-                    <Mic className="w-5 h-5 text-[#6366f1]" />
+                    <Settings className="w-5 h-5 text-[#6366f1]" />
                   </div>
-                  <h3 className="font-semibold text-[#0f172a]">语音识别引擎</h3>
+                  <h3 className="font-semibold text-[#0f172a]">百度 ASR</h3>
                 </div>
-                <p className="text-xs text-[#64748b] mb-4">
-                  选择用于语音识别的引擎，百度和讯飞均支持中文识别
-                </p>
 
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-[#334155] mb-2">
-                        请输入 APP_ID
-                      </label>
-                      <input
-                        type="text"
-                        value={baiduAppId}
-                        onChange={(e) => setBaiduAppId(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
-                        placeholder="请输入 APP_ID"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[#334155] mb-2">
-                        请输入 API_KEY
-                      </label>
-                      <input
-                        type="text"
-                        value={baiduApiKey}
-                        onChange={(e) => setBaiduApiKey(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
-                        placeholder="请输入 API_KEY"
-                      />
-                    </div>
-                  </div>
-
                   <div>
                     <label className="block text-sm font-medium text-[#334155] mb-2">
-                      SECRET_KEY
+                      App ID
+                    </label>
+                    <input
+                      type="text"
+                      value={baiduAppId}
+                      onChange={(e) => setBaiduAppId(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#334155] mb-2">
+                      API Key
+                    </label>
+                    <input
+                      type="text"
+                      value={baiduApiKey}
+                      onChange={(e) => setBaiduApiKey(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#334155] mb-2">
+                      Secret Key
                     </label>
                     <input
                       type="password"
                       value={baiduSecretKey}
                       onChange={(e) => setBaiduSecretKey(e.target.value)}
                       className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
-                      placeholder="请输入 SECRET_KEY"
                     />
-                  </div>
-
-                  <div className="flex items-center gap-3 pt-2">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-[#fef3c7] text-[#d97706] rounded-lg text-sm">
-                      <AlertCircle className="w-4 h-4" />
-                      未配置
-                    </div>
-                    <button className="px-4 py-2 bg-[#6366f1] text-white rounded-lg text-sm font-medium hover:bg-[#4f46e5] transition-all duration-200">
-                      测试连接
-                    </button>
-                    <button className="px-4 py-2 bg-[#f0f4ff] text-[#6366f1] border border-[#6366f1]/20 rounded-lg text-sm font-medium hover:bg-[#e0e7ff] transition-all duration-200">
-                      申请API
-                    </button>
-                  </div>
-
-                  <div className="bg-[#fefce8] rounded-xl p-4 space-y-2">
-                    <p className="text-sm font-medium text-[#854d0e] flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4" />
-                      百度语音 API 申请指引：
-                    </p>
-                    <ol className="text-sm text-[#a16207] space-y-1 list-decimal list-inside">
-                      <li>
-                        访问：
-                        <a href="#" className="text-[#6366f1] hover:underline">
-                          百度智能云控制台
-                        </a>
-                      </li>
-                      <li>登录百度账号，创建应用</li>
-                      <li>获取 APP_ID, API_KEY, SECRET_KEY</li>
-                      <li>填入上方输入框即可自动保存</li>
-                    </ol>
                   </div>
                 </div>
               </div>
 
-              {/* 讯飞语音识别 */}
               <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#e2e8f0]">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-[#f0f4ff] rounded-xl flex items-center justify-center">
-                    <Mic className="w-5 h-5 text-[#6366f1]" />
+                    <Settings className="w-5 h-5 text-[#6366f1]" />
                   </div>
-                  <h3 className="font-semibold text-[#0f172a]">
-                    讯飞语音识别 API 配置
-                  </h3>
+                  <h3 className="font-semibold text-[#0f172a]">讯飞 ASR</h3>
                 </div>
 
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-[#334155] mb-2">
-                      APP_ID
+                      App ID
                     </label>
                     <input
                       type="text"
@@ -784,10 +830,9 @@ export const VoiceConfig: React.FC = () => {
                       className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-[#334155] mb-2">
-                      API_KEY
+                      API Key
                     </label>
                     <input
                       type="text"
@@ -796,10 +841,9 @@ export const VoiceConfig: React.FC = () => {
                       className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-[#334155] mb-2">
-                      API_SECRET
+                      API Secret
                     </label>
                     <input
                       type="password"
@@ -808,32 +852,55 @@ export const VoiceConfig: React.FC = () => {
                       className="w-full px-4 py-2.5 bg-white border border-[#e2e8f0] rounded-xl text-sm focus:border-[#6366f1] focus:ring-2 focus:ring-[#6366f1]/10 transition-all duration-200"
                     />
                   </div>
-
-                  <div className="flex items-center gap-3 pt-2">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-[#fef3c7] text-[#d97706] rounded-lg text-sm">
-                      <AlertCircle className="w-4 h-4" />
-                      未配置
-                    </div>
-                    <button className="px-4 py-2 bg-[#6366f1] text-white rounded-lg text-sm font-medium hover:bg-[#4f46e5] transition-all duration-200">
-                      测试连接
-                    </button>
-                    <button className="px-4 py-2 bg-[#f0f4ff] text-[#6366f1] border border-[#6366f1]/20 rounded-lg text-sm font-medium hover:bg-[#e0e7ff] transition-all duration-200">
-                      申请API
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-[#64748b] flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-[#6366f1] rounded-full"></span>
-                    访问：
-                    <a
-                      href="https://console.xfyun.cn/services/tts"
-                      className="text-[#6366f1] hover:underline"
-                    >
-                      讯飞开放平台
-                    </a>
-                    申请语音听写（流式版）API
-                  </p>
                 </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#e2e8f0]">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-[#f0f4ff] rounded-xl flex items-center justify-center">
+                    <Keyboard className="w-5 h-5 text-[#6366f1]" />
+                  </div>
+                  <h3 className="font-semibold text-[#0f172a]">快捷键说明</h3>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between py-2 border-b border-[#e2e8f0]">
+                    <span className="text-[#64748b]">开始录音</span>
+                    <span className="font-medium text-[#334155]">
+                      {shortcut}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-[#e2e8f0]">
+                    <span className="text-[#64748b]">停止录音</span>
+                    <span className="font-medium text-[#334155]">松开按键</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#e2e8f0]">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-[#f0f4ff] rounded-xl flex items-center justify-center">
+                    <AlertCircle className="w-5 h-5 text-[#6366f1]" />
+                  </div>
+                  <h3 className="font-semibold text-[#0f172a]">使用提示</h3>
+                </div>
+
+                <ul className="space-y-2 text-sm text-[#64748b]">
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#6366f1]">•</span>
+                    <span>按住快捷键开始语音输入</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#6366f1]">•</span>
+                    <span>松开按键自动识别并输入</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#6366f1]">•</span>
+                    <span>建议在安静环境下使用</span>
+                  </li>
+                </ul>
               </div>
             </div>
           </>
@@ -842,3 +909,15 @@ export const VoiceConfig: React.FC = () => {
     </div>
   );
 };
+
+// 防抖函数
+function debounce<T extends (...args: any[]) => void>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<T>) => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}

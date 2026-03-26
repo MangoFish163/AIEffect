@@ -4,7 +4,7 @@
 
 ## 📋 前置要求
 
-- **Python 3.11+** 
+- **Python 3.12+**
 - **Node.js 18+**
 - **Windows 10/11** (脚本仅支持 Windows)
 
@@ -18,6 +18,7 @@
 ```
 
 该脚本会：
+
 1. 自动检查并安装 Python 虚拟环境
 2. 安装 Python 依赖
 3. 安装 npm 依赖
@@ -29,6 +30,7 @@
 如果不想使用脚本，也可以手动启动：
 
 **启动后端：**
+
 ```bash
 cd backend
 python -m venv venv
@@ -38,6 +40,7 @@ python src/main.py
 ```
 
 **启动前端（新开一个终端）：**
+
 ```bash
 cd frontend
 npm install
@@ -54,6 +57,7 @@ npm run dev
 ```
 
 该脚本会：
+
 1. 清理旧的构建文件
 2. 构建后端（复制源码到 dist）
 3. 构建前端（Vite 生产构建）
@@ -71,12 +75,14 @@ start.bat
 
 ## 📊 服务端口
 
-| 服务 | 端口 | 说明 |
-|------|------|------|
-| 后端 API | 8500 | FastAPI 主服务 |
-| 前端开发 | 5173 | Vite 开发服务器 |
-| 前端预览 | 4173 | Vite 预览服务器 |
-| API 文档 | 8500/docs | Swagger UI |
+| 服务        | 端口      | 说明             |
+| ----------- | --------- | ---------------- |
+| 前端开发    | 8500      | Vite 开发服务器  |
+| API Gateway | 8501      | 统一 API 入口    |
+| WebSocket   | 8502      | 实时对话服务     |
+| 日志服务    | 8505      | 独立日志收集服务 |
+| 前端预览    | 8500      | Vite 预览服务器  |
+| API 文档    | 8501/docs | Swagger UI       |
 
 ## 🛠️ 故障排除
 
@@ -95,6 +101,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ### 端口被占用
 
 如果 8500 或 5173 端口被占用，可以：
+
 1. 修改 `.env` 文件中的端口配置
 2. 或者关闭占用端口的程序
 

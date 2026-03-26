@@ -19,6 +19,7 @@ interface SelectProps {
   placeholder?: string;
   className?: string;
   placement?: 'auto' | 'top' | 'bottom';
+  disabled?: boolean;
 }
 
 export const Select: React.FC<SelectProps> = ({
@@ -28,6 +29,7 @@ export const Select: React.FC<SelectProps> = ({
   placeholder,
   className,
   placement = 'auto',
+  disabled = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPlacement, setDropdownPlacement] = useState<'top' | 'bottom'>('bottom');
@@ -68,12 +70,14 @@ export const Select: React.FC<SelectProps> = ({
     <div ref={ref} className={cn('relative', className)}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
         className={cn(
           'w-full flex items-center justify-between px-4 py-2.5 bg-white border rounded-xl text-sm transition-all duration-200',
           isOpen
             ? 'border-[#6366f1] ring-2 ring-[#6366f1]/10 shadow-sm'
-            : 'border-[#e2e8f0] hover:border-[#94a3b8]'
+            : 'border-[#e2e8f0] hover:border-[#94a3b8]',
+          disabled && 'opacity-50 cursor-not-allowed bg-[#f8fafc]'
         )}
       >
         <span className={selectedOption ? 'text-[#334155]' : 'text-[#94a3b8]'}>

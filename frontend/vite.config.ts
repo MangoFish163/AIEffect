@@ -11,10 +11,17 @@ export default defineConfig({
   },
   server: {
     port: 8500,
-    strictPort: false,
+    strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8501',
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
   preview: {
     port: 8500,
-    strictPort: false,
+    strictPort: true,
   },
 });

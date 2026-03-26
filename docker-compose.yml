@@ -1,0 +1,87 @@
+# AIEffect 本地开发编排
+version: "3.8"
+
+services:
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api_gateway/Dockerfile
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./shared/python:/shared/python:ro
+      - ./services/api_gateway/src:/app/src:ro
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_PATH=/app/data/aieffect.db
+      - LOG_LEVEL=INFO
+    networks:
+      - aieffect-network
+    depends_on:
+      - log-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # WebSocket Service
+  websocket:
+    build:
+      context: .
+      dockerfile: services/websocket/Dockerfile
+    ports:
+      - "8502:8502"
+    volumes:
+      - ./data:/app/data
+      - ./shared/python:/shared/python:ro
+      - ./services/websocket/src:/app/src:ro
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_PATH=/app/data/aieffect.db
+      - LOG_LEVEL=INFO
+    networks:
+      - aieffect-network
+    depends_on:
+      - api-gateway
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8502/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Log Service
+  log-service:
+    build:
+      context: .
+      dockerfile: services/log/Dockerfile
+    ports:
+      - "8505:8505"
+    volumes:
+      - ./data/logs:/app/data/logs
+      - ./shared/python:/shared/python:ro
+      - ./services/log/src:/app/src:ro
+    environment:
+      - ENVIRONMENT=development
+      - LOG_DB_PATH=/app/data/logs/logs.db
+      - LOG_LEVEL=INFO
+    networks:
+      - aieffect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8505/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  aieffect-network:
+    driver: bridge
+
+volumes:
+  data:
+    driver: local

@@ -18,8 +18,8 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// API 基础地址
-const API_BASE_URL = "http://localhost:8501";
+// API 基础地址 - 使用相对路径让请求通过 Vite proxy
+const API_BASE_URL = "";
 
 // 服务状态类型
 interface ServiceStatus {
