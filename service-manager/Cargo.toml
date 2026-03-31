@@ -1,0 +1,36 @@
+[package]
+name = "service-manager"
+version = "1.0.0"
+edition = "2021"
+description = "AIEffect Service Lifecycle Manager"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full", "process", "signal", "time"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.11", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+anyhow = "1.0"
+dunce = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4.4", features = ["derive"] }
+dashmap = "5.5"
+tokio-util = "0.7"
+async-trait = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", features = [
+    "Win32_System_Threading",
+    "Win32_System_JobObjects",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Console",
+    "Win32_System_ProcessStatus",
+] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

@@ -21,6 +21,7 @@ class APIConfig(BaseModel):
     api_url: str = ""
     api_key: str = ""
     model_name: str = ""
+    request_format: str = "openai"
 
 
 class TTSConfig(BaseModel):

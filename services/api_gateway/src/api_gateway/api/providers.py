@@ -305,19 +305,35 @@ async def _test_with_curl(curl_example: str, start_time: float) -> dict:
             headers[key.strip()] = value.strip()
     logger.info(f"[模型测试] 解析到 {len(headers)} 个Headers: {list(headers.keys())}")
 
-    # 提取请求体
+    # 提取请求体 - 支持多种格式
     body = None
-    body_match = re.search(r'-d\s+["\'](.+?)["\']\s*$', curl_example, re.DOTALL)
-    if body_match:
-        body_str = body_match.group(1)
-        # 处理转义的引号
-        body_str = body_str.replace("\\'", "'").replace('\\"', '"')
+    body_str = None
+
+    # 尝试匹配 $'...' 格式 (Bash ANSI-C 引号)
+    # 匹配从 $' 开始到末尾的 ' 结束，使用非贪婪匹配
+    ansi_c_match = re.search(r"-d\s+\$'(.+)'\s*$", curl_example, re.DOTALL)
+    if ansi_c_match:
+        body_str = ansi_c_match.group(1)
+        # 处理 ANSI-C 转义序列
+        body_str = body_str.replace('\\n', '\n').replace('\\t', '\t').replace("\\'", "'").replace('\\"', '"').replace('\\\\', '\\')
+        logger.info(f"[模型测试] 解析到ANSI-C格式请求体")
+    else:
+        # 匹配标准引号格式 -d '...' 或 -d "..."
+        # 使用非贪婪匹配确保捕获完整的JSON
+        body_match = re.search(r'-d\s+(["\'])(.+?)\1\s*$', curl_example, re.DOTALL)
+        if body_match:
+            body_str = body_match.group(2)
+            # 处理转义的引号
+            body_str = body_str.replace("\\'", "'").replace('\\"', '"')
+            logger.info(f"[模型测试] 解析到标准格式请求体")
+
+    if body_str:
         try:
             body = json.loads(body_str)
-            logger.info(f"[模型测试] 解析到JSON请求体")
-        except:
+            logger.info(f"[模型测试] 成功解析JSON请求体")
+        except json.JSONDecodeError as e:
+            logger.warning(f"[模型测试] JSON解析失败: {e}, 使用原始文本")
             body = body_str
-            logger.info(f"[模型测试] 解析到文本请求体")
 
     # 发送请求
     logger.info(f"[模型测试] 使用cURL方式发送请求到: {url}")
@@ -352,6 +368,23 @@ async def _test_with_curl(curl_example: str, start_time: float) -> dict:
                 "latency_ms": latency_ms,
                 "model_list": None,
                 "message": "模型不存在或接口地址错误"
+            }
+        elif response.status_code == 400:
+            # 400 错误通常是请求参数格式问题，尝试获取详细错误信息
+            error_detail = ""
+            try:
+                error_json = response.json()
+                if isinstance(error_json, dict):
+                    error_detail = error_json.get("error", {}).get("message", "") or error_json.get("message", "")
+            except:
+                error_detail = response.text[:200] if response.text else ""
+            
+            logger.warning(f"[模型测试] cURL测试失败 - HTTP 400, 详情: {error_detail}")
+            return {
+                "success": False,
+                "latency_ms": latency_ms,
+                "model_list": None,
+                "message": f"请求参数错误: {error_detail or '请检查模型名称和请求格式'}"
             }
         else:
             logger.warning(f"[模型测试] cURL测试失败 - HTTP状态码: {response.status_code}")

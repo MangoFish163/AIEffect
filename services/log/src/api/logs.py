@@ -8,13 +8,24 @@ from datetime import datetime
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import StreamingResponse
 
-from ..models.schemas import (
-    LogBatch, LogEntry, IngestResponse, LogListResponse,
-    LogStats, BaseResponse
-)
-from ..core.database import get_db
-from ..services.log_streamer import get_streamer
-from ..services.alert_engine import get_alert_engine
+try:
+    from ..models.schemas import (
+        LogBatch, LogEntry, IngestResponse, LogListResponse,
+        LogStats, BaseResponse
+    )
+    from ..core.database import get_db
+    from ..services.log_streamer import get_streamer
+    from ..services.alert_engine import get_alert_engine
+    from ..services.log_cache import get_log_cache
+except ImportError:
+    from models.schemas import (
+        LogBatch, LogEntry, IngestResponse, LogListResponse,
+        LogStats, BaseResponse
+    )
+    from core.database import get_db
+    from services.log_streamer import get_streamer
+    from services.alert_engine import get_alert_engine
+    from services.log_cache import get_log_cache
 
 router = APIRouter(tags=["logs"])
 
@@ -26,11 +37,13 @@ async def ingest_logs(batch: LogBatch):
     - 支持批量写入，减少IO
     - 异步队列缓冲，削峰填谷
     - 触发告警检查
+    - 同步更新缓存
     """
     try:
         db = await get_db()
         streamer = await get_streamer()
         alert_engine = await get_alert_engine()
+        cache = await get_log_cache()
 
         # 转换日志格式
         logs = []
@@ -57,6 +70,9 @@ async def ingest_logs(batch: LogBatch):
 
         # 写入数据库
         count = await db.insert_logs(logs)
+
+        # 添加到缓存（滚动替换策略，保留最近200条）
+        await cache.add_logs(logs)
 
         # 广播到订阅者和告警引擎
         for log_dict in logs:
@@ -88,10 +104,60 @@ async def get_logs(
     start_time: Optional[datetime] = Query(None),
     end_time: Optional[datetime] = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200)
+    page_size: int = Query(50, ge=1, le=200),
+    use_cache: bool = Query(True, description="是否优先使用缓存")
 ):
-    """分页查询日志"""
+    """分页查询日志
+    
+    优化策略：
+    - 第一页且不带时间筛选时，优先从缓存读取（极速响应）
+    - 其他情况查询数据库
+    """
     try:
+        # 判断是否可以使用缓存
+        # 条件：第一页、不带时间筛选、启用缓存
+        can_use_cache = (
+            use_cache and 
+            page == 1 and 
+            start_time is None and 
+            end_time is None
+        )
+        
+        if can_use_cache:
+            cache = await get_log_cache()
+            cache_result = await cache.get_logs(
+                level=level,
+                module=module,
+                search=search,
+                limit=page_size,
+                offset=0
+            )
+            
+            # 如果缓存中有数据，直接返回
+            if cache_result["total"] > 0:
+                # 计算总页数（缓存不知道总数，需要从数据库获取）
+                db = await get_db()
+                db_result = await db.query_logs(
+                    level=level,
+                    module=module,
+                    search=search,
+                    start_time=start_time,
+                    end_time=end_time,
+                    page=1,
+                    page_size=1
+                )
+                total = db_result.get("total", cache_result["total"])
+                
+                return BaseResponse(data={
+                    "items": cache_result["items"],
+                    "total": total,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": (total + page_size - 1) // page_size,
+                    "from_cache": True
+                })
+        
+        # 缓存不可用或缓存为空，查询数据库
         db = await get_db()
         result = await db.query_logs(
             level=level,
@@ -108,9 +174,34 @@ async def get_logs(
 
 
 @router.get("/logs/stats", response_model=BaseResponse)
-async def get_log_stats():
-    """获取日志统计"""
+async def get_log_stats(use_cache: bool = Query(True, description="是否优先使用缓存")):
+    """获取日志统计
+    
+    优化策略：优先从缓存获取统计信息（极速响应）
+    """
     try:
+        if use_cache:
+            cache = await get_log_cache()
+            cache_stats = await cache.get_stats()
+            
+            # 如果缓存中有数据，直接返回缓存统计
+            if cache_stats["total"] > 0:
+                # 获取数据库的总数（更精确）
+                db = await get_db()
+                db_stats = await db.get_stats()
+                
+                # 合并统计：使用数据库的总数，但保留缓存的实时计数
+                return BaseResponse(data={
+                    "total": db_stats.get("total", 0),
+                    "error_count": db_stats.get("error_count", 0),
+                    "warn_count": db_stats.get("warn_count", 0),
+                    "info_count": db_stats.get("info_count", 0),
+                    "debug_count": db_stats.get("debug_count", 0),
+                    "cache_size": cache_stats["total"],
+                    "from_cache": True
+                })
+        
+        # 缓存不可用，查询数据库
         db = await get_db()
         stats = await db.get_stats()
         return BaseResponse(data=stats)
@@ -219,19 +310,39 @@ async def get_module_stats(
 @router.get("/stream")
 async def stream_logs(
     level: Optional[str] = Query(None),
-    module: Optional[str] = Query(None)
+    module: Optional[str] = Query(None),
+    send_cached: bool = Query(True, description="是否先发送缓存的日志")
 ):
     """
     SSE 实时日志流
     - 支持级别过滤
     - 支持模块过滤
     - 自动重连机制
+    - 连接时先发送缓存的最近日志（极速展示）
     """
     streamer = await get_streamer()
     subscriber = await streamer.subscribe(filter_level=level, filter_module=module)
+    cache = await get_log_cache()
     
     async def event_generator():
         try:
+            # 先发送缓存中的最近日志（让用户立即看到内容）
+            if send_cached:
+                cached_logs = await cache.get_recent_logs(count=50)
+                for log in reversed(cached_logs):  # 按时间顺序发送
+                    # 应用过滤条件
+                    if level and log.get('level') != level.upper():
+                        continue
+                    if module and module.lower() not in log.get('module', '').lower():
+                        continue
+                    
+                    data = json.dumps(log, default=str)
+                    yield f"data: {data}\n\n"
+                
+                # 发送一个特殊标记表示缓存已发送完毕
+                yield f"data: {json.dumps({'type': 'cache_complete', 'cached_count': len(cached_logs)})}\n\n"
+            
+            # 进入实时流模式
             while True:
                 try:
                     # 等待日志，超时发送心跳
@@ -411,9 +522,14 @@ async def clear_logs(
 
         await db.db.commit()
 
+        # 同时清空缓存
+        cache = await get_log_cache()
+        await cache.clear()
+
         return BaseResponse(data={
             "deleted_count": deleted_count,
-            "tables_affected": len(tables)
+            "tables_affected": len(tables),
+            "cache_cleared": True
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

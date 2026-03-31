@@ -6,9 +6,14 @@ from typing import Optional, List
 from datetime import datetime
 from fastapi import APIRouter, Query, HTTPException, Path
 
-from ..models.schemas import AlertRule, BaseResponse
-from ..core.database import get_db
-from ..services.alert_engine import get_alert_engine
+try:
+    from ..models.schemas import AlertRule, BaseResponse
+    from ..core.database import get_db
+    from ..services.alert_engine import get_alert_engine
+except ImportError:
+    from models.schemas import AlertRule, BaseResponse
+    from core.database import get_db
+    from services.alert_engine import get_alert_engine
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 

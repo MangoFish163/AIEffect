@@ -63,13 +63,54 @@ export const LogsViewer: React.FC = () => {
   // 实时日志 EventSource
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // 获取日志列表
+  // 获取日志列表（缓存优先）
+  const fetchLogsWithCache = async () => {
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        page_size: pageSize,
+        use_cache: 'true', // 优先使用缓存
+      });
+      if (levelFilter !== 'all') {
+        params.append('level', levelFilter);
+      }
+      if (searchQuery) {
+        params.append('search', searchQuery);
+      }
+
+      const res = await fetch(`${API_BASE_URL}/api/logs?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.data) {
+          setLogs(data.data.items);
+          setTotalPages(data.data.total_pages);
+          setTotalLogs(data.data.total);
+          
+          // 如果数据来自缓存，可以立即显示
+          if (data.data.from_cache) {
+            console.log('Logs loaded from cache:', data.data.items.length);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch logs:', error);
+    } finally {
+      // 如果实时模式开启，保持加载状态直到SSE连接完成
+      if (!isLive) {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  // 获取日志列表（强制从数据库获取）
   const fetchLogs = async () => {
     try {
       setIsLoading(true);
       const params = new URLSearchParams({
         page: currentPage.toString(),
         page_size: pageSize,
+        use_cache: 'false', // 强制从数据库获取
       });
       if (levelFilter !== 'all') {
         params.append('level', levelFilter);
@@ -129,9 +170,9 @@ export const LogsViewer: React.FC = () => {
     }
   };
 
-  // 刷新日志
+  // 刷新日志（强制从数据库刷新）
   const refreshLogs = () => {
-    fetchLogs();
+    fetchLogs(); // 强制从数据库获取最新数据
     fetchStats();
   };
 
@@ -167,22 +208,47 @@ export const LogsViewer: React.FC = () => {
       eventSourceRef.current.close();
     }
 
-    const es = new EventSource(`${API_BASE_URL}/api/logs/stream`);
+    const es = new EventSource(`${API_BASE_URL}/api/logs/stream?send_cached=true`);
+    let isReceivingCache = true;
+    
     es.onmessage = (event) => {
       try {
         const newLog = JSON.parse(event.data);
-        setLogs((prev) => {
-          // 只保留最新的50条，避免内存溢出
-          const updated = [newLog, ...prev];
-          return updated.slice(0, parseInt(pageSize));
-        });
-        setTotalLogs((prev) => prev + 1);
+        
+        // 处理缓存完成标记
+        if (newLog.type === 'cache_complete') {
+          isReceivingCache = false;
+          setIsLoading(false); // 缓存接收完毕，停止加载状态
+          return;
+        }
+        
+        if (isReceivingCache) {
+          // 接收缓存数据：追加到列表（缓存是按时间顺序发送的）
+          setLogs((prev) => {
+            // 合并缓存数据，保持时间降序（最新的在前）
+            const combined = [...prev, newLog];
+            // 去重（根据id）
+            const unique = combined.filter((log, index, self) => 
+              index === self.findIndex((l) => l.id === log.id)
+            );
+            // 限制数量
+            return unique.slice(0, parseInt(pageSize));
+          });
+        } else {
+          // 接收实时数据：添加到最前面
+          setLogs((prev) => {
+            const updated = [newLog, ...prev];
+            return updated.slice(0, parseInt(pageSize));
+          });
+          setTotalLogs((prev) => prev + 1);
+        }
       } catch (error) {
         console.error('Failed to parse log:', error);
       }
     };
     es.onerror = (error) => {
       console.error('EventSource error:', error);
+      setIsLoading(false);
     };
     eventSourceRef.current = es;
   };
@@ -195,10 +261,17 @@ export const LogsViewer: React.FC = () => {
     }
   };
 
-  // 初始加载
+  // 初始加载 - 使用缓存优先策略
   useEffect(() => {
-    fetchLogs();
+    // 先尝试从缓存加载（快速响应）
+    fetchLogsWithCache();
     fetchStats();
+    
+    // 如果实时模式开启，连接SSE（会接收缓存数据）
+    if (isLive) {
+      connectEventSource();
+    }
+    
     return () => {
       disconnectEventSource();
     };
@@ -206,7 +279,12 @@ export const LogsViewer: React.FC = () => {
 
   // 监听分页、筛选变化
   useEffect(() => {
-    fetchLogs();
+    // 第一页优先使用缓存，其他页从数据库获取
+    if (currentPage === 1) {
+      fetchLogsWithCache();
+    } else {
+      fetchLogs();
+    }
   }, [currentPage, pageSize, levelFilter]);
 
   // 监听实时模式变化
@@ -223,7 +301,7 @@ export const LogsViewer: React.FC = () => {
     const timer = setTimeout(() => {
       if (searchQuery !== undefined) {
         setCurrentPage(1);
-        fetchLogs();
+        fetchLogsWithCache(); // 搜索时也优先使用缓存
       }
     }, 300);
     return () => clearTimeout(timer);

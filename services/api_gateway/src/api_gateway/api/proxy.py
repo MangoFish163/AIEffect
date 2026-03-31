@@ -11,7 +11,7 @@ from ..models.schemas import (
     ProxyStatusResponse,
     ProxyTestResponse,
 )
-from shared_core import get_db, get_logger
+from shared_core import get_db, get_logger, get_config_manager
 
 router = APIRouter(prefix="", tags=["proxy"])
 logger = get_logger(__name__)
@@ -88,19 +88,87 @@ async def stop_proxy():
 
 
 @router.post("/api/proxy/test", response_model=BaseResponse)
-async def test_proxy():
+async def test_proxy(request: Request):
     try:
+        config_manager = get_config_manager()
+        user_request_format = config_manager.config.api.request_format
+        test_data = await request.json()
+        
         start_time = time.time()
-        await asyncio.sleep(0.05)
-        latency_ms = int((time.time() - start_time) * 1000)
-        return BaseResponse(data={
-            "success": True,
-            "latency_ms": latency_ms,
-            "model_list": ["deepseek-chat", "gpt-4", "claude-3-opus"],
-        })
+        
+        # 尝试使用用户指定的格式
+        try:
+            result = await _test_with_format(user_request_format, test_data)
+            latency_ms = int((time.time() - start_time) * 1000)
+            return BaseResponse(data={
+                "success": True,
+                "format_used": user_request_format,
+                "latency_ms": latency_ms,
+                "model_list": ["deepseek-chat", "gpt-4", "claude-3-opus"],
+                "result": result,
+            })
+        except Exception as e:
+            logger.warning(f"User-specified format '{user_request_format}' failed, falling back to OpenAI format: {e}")
+            
+            # 降级到 OpenAI 格式
+            result = await _test_with_format("openai", test_data)
+            latency_ms = int((time.time() - start_time) * 1000)
+            return BaseResponse(data={
+                "success": True,
+                "format_used": "openai",
+                "fallback_from": user_request_format,
+                "latency_ms": latency_ms,
+                "model_list": ["deepseek-chat", "gpt-4", "claude-3-opus"],
+                "result": result,
+            })
     except Exception as e:
         logger.error(f"Error testing proxy: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _test_with_format(request_format: str, test_data: Dict[str, Any]) -> Dict[str, Any]:
+    """使用指定格式测试请求"""
+    if request_format == "openai":
+        # OpenAI 格式
+        return {
+            "id": f"chatcmpl-{int(time.time())}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": test_data.get("model", "gpt-4"),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "This is a test response from AIEffect proxy service.",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 10,
+                "total_tokens": 20,
+            }
+        }
+    elif request_format == "ollama":
+        # Ollama 格式
+        return {
+            "model": test_data.get("model", "llama2"),
+            "created_at": datetime.now().isoformat(),
+            "message": {
+                "role": "assistant",
+                "content": "This is a test response from AIEffect proxy service.",
+            },
+            "done": True,
+            "total_duration": 1000000000,
+            "load_duration": 1000000000,
+            "prompt_eval_count": 10,
+            "eval_count": 10,
+        }
+    else:
+        # 不支持的格式
+        raise ValueError(f"Unsupported request format: {request_format}")
 
 
 @router.post("/v1/chat/completions")

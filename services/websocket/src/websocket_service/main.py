@@ -15,6 +15,7 @@ from .session.manager import get_session_manager
 from .handlers.ai_assistant import AIAssistantHandler
 from .handlers.agent_chat import AgentChatHandler
 from shared_core import get_config_manager, setup_logger, get_logger, get_db
+from shared_core.database import init_db, close_db
 
 
 # 处理器注册表
@@ -33,8 +34,7 @@ async def lifespan(app: FastAPI):
     logger.info("WebSocket Service starting...")
 
     # 初始化数据库
-    db = get_db()
-    await db.init()
+    await init_db()
     logger.info("Database initialized")
 
     # 启动心跳检查任务
@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI):
 
     # 关闭
     heartbeat_task.cancel()
+    await close_db()
     logger.info("WebSocket Service shutting down...")
 
 
@@ -333,13 +334,71 @@ async def health_check():
     }
 
 
+# 全局 server 实例，用于优雅关闭
+_uvicorn_server = None
+
+def get_server():
+    """获取 uvicorn server 实例"""
+    global _uvicorn_server
+    return _uvicorn_server
+
+
+@app.post("/shutdown")
+async def shutdown():
+    """优雅关闭服务"""
+    import asyncio
+    import os
+
+    logger = get_logger(__name__)
+    logger.info("Shutdown requested, stopping server...")
+
+    async def do_shutdown():
+        # 给响应一些时间返回
+        await asyncio.sleep(0.5)
+        # 尝试通过 server 实例优雅关闭
+        try:
+            server = get_server()
+            if server and hasattr(server, 'should_exit'):
+                server.should_exit = True
+                logger.info("Server should_exit set to True")
+                return
+        except Exception:
+            pass
+        
+        # 备选方案：使用 os._exit 避免异常堆栈
+        os._exit(0)
+
+    # 启动关闭任务
+    asyncio.create_task(do_shutdown())
+
+    return {"status": "shutting_down", "message": "Service is shutting down gracefully"}
+
+
 if __name__ == "__main__":
+    import logging
+    
+    # 配置访问日志过滤器，跳过健康检查端点
+    class HealthCheckFilter(logging.Filter):
+        def filter(self, record):
+            # 过滤掉健康检查端点的访问日志
+            if hasattr(record, 'args') and len(record.args) >= 3:
+                path = str(record.args[2]) if len(record.args) > 2 else ""
+                if path == "/health" or path.startswith("/health"):
+                    return False
+            return True
+    
+    # 获取 uvicorn 访问日志记录器并添加过滤器
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.addFilter(HealthCheckFilter())
+    
     config_manager = get_config_manager()
     port = config_manager.config.ports.websocket
 
-    uvicorn.run(
+    config = uvicorn.Config(
         "websocket_service.main:app",
         host="0.0.0.0",
         port=port,
         reload=True,
     )
+    _uvicorn_server = uvicorn.Server(config)
+    _uvicorn_server.run()

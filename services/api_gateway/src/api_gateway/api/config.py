@@ -36,6 +36,10 @@ async def _init_default_config():
     不会覆盖用户已修改的配置
     """
     db = get_db()
+    if not db or not db.db:
+        logger.error("Database connection not available, cannot initialize default config")
+        return
+        
     default_configs = [
         # API配置
         ('api.provider', json.dumps('local'), 'api', 'API提供商'),
@@ -77,53 +81,80 @@ async def _init_default_config():
         ('lan_enabled', 'false', 'general', '是否启用局域网'),
     ]
     
-    inserted_count = 0
-    for key, value, category, description in default_configs:
-        # 使用 INSERT OR IGNORE 实现幂等性
-        # 如果key已存在，不会插入也不会更新
-        cursor = await db.execute(
-            """INSERT OR IGNORE INTO config (key, value, category, description, updated_at, created_at)
-            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""",
-            (key, value, category, description)
-        )
-        if cursor and cursor.rowcount > 0:
-            inserted_count += 1
+    # 开启事务
+    await db.db.execute("BEGIN TRANSACTION")
     
-    if inserted_count > 0:
-        logger.info(f"Default config initialized: {inserted_count} new entries")
-    else:
-        logger.debug("Default config already exists, skipping initialization")
+    try:
+        inserted_count = 0
+        for key, value, category, description in default_configs:
+            # 使用 INSERT OR IGNORE 实现幂等性
+            # 如果key已存在，不会插入也不会更新
+            cursor = await db.db.execute(
+                """INSERT OR IGNORE INTO config (key, value, category, description, updated_at, created_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""",
+                (key, value, category, description)
+            )
+            if cursor and cursor.rowcount > 0:
+                inserted_count += 1
+        
+        # 提交事务
+        await db.db.commit()
+        
+        if inserted_count > 0:
+            logger.info(f"Default config initialized: {inserted_count} new entries")
+        else:
+            logger.debug("Default config already exists, skipping initialization")
+    except Exception as e:
+        # 回滚事务
+        await db.db.rollback()
+        logger.error(f"Failed to initialize default config, transaction rolled back: {e}")
+        raise
 
 
 async def _update_config_in_db(updates: Dict[str, Any]):
     db = get_db()
-    for section, values in updates.items():
-        if section == 'lan_enabled':
-            await db.execute(
-                """INSERT INTO config (key, value, category, updated_at, created_at)
-                VALUES (?, ?, 'general', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                ON CONFLICT(key) DO UPDATE SET
-                value = excluded.value,
-                updated_at = CURRENT_TIMESTAMP""",
-                ('lan_enabled', str(values).lower())
-            )
-        elif isinstance(values, dict):
-            for key, value in values.items():
-                full_key = f"{section}.{key}"
-                if isinstance(value, (dict, list)):
-                    str_value = json.dumps(value, ensure_ascii=False)
-                elif isinstance(value, bool):
-                    str_value = str(value).lower()
-                else:
-                    str_value = str(value)
-                await db.execute(
+    if not db or not db.db:
+        raise RuntimeError("Database connection is not available")
+    
+    # 开启事务
+    await db.db.execute("BEGIN TRANSACTION")
+    
+    try:
+        for section, values in updates.items():
+            if section == 'lan_enabled':
+                await db.db.execute(
                     """INSERT INTO config (key, value, category, updated_at, created_at)
-                    VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    VALUES (?, ?, 'general', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT(key) DO UPDATE SET
                     value = excluded.value,
                     updated_at = CURRENT_TIMESTAMP""",
-                    (full_key, str_value, section)
+                    ('lan_enabled', str(values).lower())
                 )
+            elif isinstance(values, dict):
+                for key, value in values.items():
+                    full_key = f"{section}.{key}"
+                    if isinstance(value, (dict, list)):
+                        str_value = json.dumps(value, ensure_ascii=False)
+                    elif isinstance(value, bool):
+                        str_value = str(value).lower()
+                    else:
+                        str_value = str(value)
+                    await db.db.execute(
+                        """INSERT INTO config (key, value, category, updated_at, created_at)
+                        VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT(key) DO UPDATE SET
+                        value = excluded.value,
+                        updated_at = CURRENT_TIMESTAMP""",
+                        (full_key, str_value, section)
+                    )
+        
+        # 提交事务
+        await db.db.commit()
+    except Exception as e:
+        # 回滚事务
+        await db.db.rollback()
+        logger.error(f"Failed to update config, transaction rolled back: {e}")
+        raise
 
 
 @router.get("", response_model=BaseResponse)
@@ -153,7 +184,11 @@ async def get_config(hash: Optional[str] = Query(None, description="前端缓存
         )
     except Exception as e:
         logger.error(f"Error getting config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return BaseResponse(
+            code=500,
+            message=f"获取配置失败: {str(e)}",
+            data=None
+        )
 
 
 @router.put("", response_model=BaseResponse)
@@ -177,18 +212,29 @@ async def update_config(request: UpdateConfigRequest):
         return BaseResponse(data=config, server_hash=server_hash)
     except Exception as e:
         logger.error(f"Error updating config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return BaseResponse(
+            code=500,
+            message=f"保存失败: {str(e)}",
+            data=None
+        )
 
 
 @router.post("/reset", response_model=BaseResponse)
 async def reset_config():
     try:
         db = get_db()
-        await db.execute("DELETE FROM config")
+        if not db or not db.db:
+            raise RuntimeError("Database connection is not available")
+            
+        await db.db.execute("DELETE FROM config")
         await _init_default_config()
         config = await _get_config_from_db()
         logger.info("Config reset to default")
         return BaseResponse(data=config)
     except Exception as e:
         logger.error(f"Error resetting config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return BaseResponse(
+            code=500,
+            message=f"重置配置失败: {str(e)}",
+            data=None
+        )

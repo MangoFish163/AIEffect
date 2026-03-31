@@ -3,6 +3,12 @@
 import sys
 import os
 
+# 设置控制台编码为 UTF-8（Windows 兼容）
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 # 添加 src 到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 

@@ -69,58 +69,17 @@ app.include_router(ai_assistant.router)
 
 @app.get("/api/health", response_model=BaseResponse)
 async def health_check():
-    services_status = {}
-    overall_status = "healthy"
-    
-    try:
-        db = get_db()
-        await db.fetchone("SELECT 1")
-        services_status["api_gateway"] = "ok"
-        services_status["database"] = "ok"
-    except Exception as e:
-        get_logger(__name__).error(f"Database health check failed: {e}")
-        services_status["api_gateway"] = "error"
-        services_status["database"] = "error"
-        overall_status = "unhealthy"
-    
-    try:
-        proxy_service = get_proxy_service()
-        proxy_status = proxy_service.get_status()
-        services_status["proxy"] = "ok" if proxy_status.get("running") else "stopped"
-    except Exception as e:
-        get_logger(__name__).error(f"Proxy health check failed: {e}")
-        services_status["proxy"] = "error"
-    
-    try:
-        tts_service = get_tts_service()
-        services_status["tts"] = "ok"
-    except Exception as e:
-        get_logger(__name__).error(f"TTS health check failed: {e}")
-        services_status["tts"] = "error"
-    
-    try:
-        db = get_db()
-        await db.fetchone("SELECT 1 FROM character_memories LIMIT 1")
-        services_status["memory"] = "ok"
-    except Exception as e:
-        get_logger(__name__).error(f"Memory health check failed: {e}")
-        services_status["memory"] = "error"
-    
+    """
+    健康检查端点 - 轻量级实现
+    只检查服务是否存活，不执行耗时操作
+    """
     response_data = {
-        "status": overall_status,
+        "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "version": "1.0.0",
-        "services": services_status
+        "service": "api-gateway"
     }
-    
-    if overall_status == "healthy":
-        return BaseResponse(data=response_data)
-    else:
-        return BaseResponse(
-            code=503,
-            message="Service unhealthy",
-            data=response_data
-        )
+    return BaseResponse(data=response_data)
 
 
 @app.get("/api/ports", response_model=BaseResponse)
@@ -141,14 +100,73 @@ async def get_ports():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# 全局 server 实例，用于优雅关闭
+_uvicorn_server = None
+
+def get_server():
+    """获取 uvicorn server 实例"""
+    global _uvicorn_server
+    return _uvicorn_server
+
+
+@app.post("/api/shutdown")
+async def shutdown():
+    """优雅关闭服务"""
+    import asyncio
+    import os
+
+    logger = get_logger(__name__)
+    logger.info("Shutdown requested, stopping server...")
+
+    async def do_shutdown():
+        # 给响应一些时间返回
+        await asyncio.sleep(0.5)
+        # 尝试通过 server 实例优雅关闭
+        try:
+            server = get_server()
+            if server and hasattr(server, 'should_exit'):
+                server.should_exit = True
+                logger.info("Server should_exit set to True")
+                return
+        except Exception:
+            pass
+        
+        # 备选方案：使用 os._exit 避免异常堆栈
+        os._exit(0)
+
+    # 启动关闭任务
+    asyncio.create_task(do_shutdown())
+
+    return {"status": "shutting_down", "message": "Service is shutting down gracefully"}
+
+
 if __name__ == "__main__":
     import uvicorn
+    import logging
+    
+    # 配置访问日志过滤器，跳过健康检查端点
+    class HealthCheckFilter(logging.Filter):
+        def filter(self, record):
+            # 过滤掉健康检查端点的访问日志
+            if hasattr(record, 'args') and len(record.args) >= 3:
+                path = str(record.args[2]) if len(record.args) > 2 else ""
+                if path == "/api/health" or path.startswith("/api/health"):
+                    return False
+            return True
+    
+    # 获取 uvicorn 访问日志记录器并添加过滤器
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.addFilter(HealthCheckFilter())
+    
     config_manager = get_config_manager()
     port = config_manager.config.ports.api
     host = "0.0.0.0" if config_manager.config.lan_enabled else "127.0.0.1"
-    uvicorn.run(
+    
+    config = uvicorn.Config(
         "api_gateway.main:app",
         host=host,
         port=port,
         reload=True,
     )
+    _uvicorn_server = uvicorn.Server(config)
+    _uvicorn_server.run()

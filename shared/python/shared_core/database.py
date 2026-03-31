@@ -110,6 +110,109 @@ CREATE TABLE IF NOT EXISTS subtitle_color_presets (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 角色表
+CREATE TABLE IF NOT EXISTS characters (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    save_id TEXT,
+    ai_soul TEXT,
+    ai_voice TEXT,
+    avatar_url TEXT,
+    token_usage INTEGER DEFAULT 0,
+    chat_count INTEGER DEFAULT 0,
+    compression_enabled BOOLEAN DEFAULT 0,
+    interaction_ops TEXT DEFAULT '[]',
+    extra_data TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 角色表索引
+CREATE INDEX IF NOT EXISTS idx_characters_save_id ON characters(save_id);
+CREATE INDEX IF NOT EXISTS idx_characters_name ON characters(name);
+CREATE INDEX IF NOT EXISTS idx_characters_created ON characters(created_at);
+
+-- 角色记忆表
+CREATE TABLE IF NOT EXISTS character_memories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id TEXT NOT NULL UNIQUE,
+    message_count INTEGER DEFAULT 0,
+    compressed_summary TEXT,
+    summary_tokens INTEGER,
+    last_message_id INTEGER,
+    last_compressed_at TIMESTAMP,
+    compression_count INTEGER DEFAULT 0,
+    extra_data TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+);
+
+-- 角色记忆表索引
+CREATE INDEX IF NOT EXISTS idx_character_memories_character_id ON character_memories(character_id);
+CREATE INDEX IF NOT EXISTS idx_character_memories_updated ON character_memories(updated_at);
+
+-- 对话消息表
+CREATE TABLE IF NOT EXISTS conversation_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    speaker TEXT,
+    content TEXT NOT NULL,
+    tokens INTEGER,
+    is_compressed BOOLEAN DEFAULT 0,
+    compressed_batch_id INTEGER,
+    session_id TEXT,
+    metadata TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+);
+
+-- 对话消息表索引
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_character ON conversation_messages(character_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_created ON conversation_messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_compressed ON conversation_messages(is_compressed);
+
+-- 记忆压缩历史表
+CREATE TABLE IF NOT EXISTS memory_compression_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id TEXT NOT NULL,
+    original_count INTEGER,
+    retained_count INTEGER,
+    compressed_count INTEGER,
+    summary TEXT,
+    backup_path TEXT,
+    prompt_used TEXT,
+    model_used TEXT,
+    duration_ms INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+);
+
+-- 记忆压缩历史表索引
+CREATE INDEX IF NOT EXISTS idx_memory_compression_character ON memory_compression_history(character_id);
+CREATE INDEX IF NOT EXISTS idx_memory_compression_created ON memory_compression_history(created_at);
+
+-- ASR 配置表
+CREATE TABLE IF NOT EXISTS asr_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    enabled BOOLEAN DEFAULT 0,
+    provider TEXT DEFAULT 'baidu',
+    shortcut TEXT DEFAULT 'Ctrl+Shift+,',
+    paste_mode TEXT DEFAULT 'direct',
+    baidu_app_id TEXT,
+    baidu_api_key TEXT,
+    baidu_secret_key TEXT,
+    xunfei_app_id TEXT,
+    xunfei_api_key TEXT,
+    xunfei_api_secret TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 初始化 ASR 配置
+INSERT OR IGNORE INTO asr_config (id, enabled, provider) VALUES (1, 0, 'baidu');
+
 -- 系统日志表
 CREATE TABLE IF NOT EXISTS system_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -311,12 +414,10 @@ async def close_db():
         _db_manager = None
 
 
-def get_db() -> Optional[aiosqlite.Connection]:
-    """获取数据库连接"""
+def get_db() -> Optional[DatabaseManager]:
+    """获取数据库管理器"""
     global _db_manager
-    if _db_manager:
-        return _db_manager.db
-    return None
+    return _db_manager
 
 
 def get_db_manager() -> Optional[DatabaseManager]:
